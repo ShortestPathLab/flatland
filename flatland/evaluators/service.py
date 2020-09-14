@@ -652,6 +652,7 @@ class FlatlandRemoteEvaluationService:
 
                     print("Overall Message Queue Latency : ", np.array(MESSAGE_QUEUE_LATENCY).mean())
                     self.handle_env_submit(command)
+                    break
                 else:
                     _error = self._error_template(
                         "UNKNOWN_REQUEST:{}".format(

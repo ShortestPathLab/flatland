@@ -469,6 +469,10 @@ class RailEnv(Environment):
             self.dones["__all__"] = True
             for i_agent in range(self.get_num_agents()):
                 self.dones[i_agent] = True
+        if (len(action_dict_) == 0):
+            self.dones["__all__"] = True
+            for i_agent in range(self.get_num_agents()):
+                self.dones[i_agent] = True
         if self.record_steps:
             self.record_timestep()
 

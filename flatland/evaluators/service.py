@@ -498,8 +498,9 @@ class FlatlandRemoteEvaluationService:
                 """
             )
 
-        mean_reward = round(np.mean(self.simulation_rewards), 2)
-        mean_normalized_reward = round(np.mean(self.simulation_rewards_normalized), 2)
+        mean_reward = round(np.sum(self.simulation_rewards), 2)
+        mean_normalized_reward = round(np.sum(self.simulation_rewards_normalized), 2)
+        print(self.simulation_rewards_normalized)
         mean_percentage_complete = round(np.mean(self.simulation_percentage_complete), 3)
 
         if self.visualize and len(os.listdir(self.vizualization_folder_name)) > 0:

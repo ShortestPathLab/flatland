@@ -32,7 +32,10 @@ from flatland.core.grid.rail_env_grid import RailEnvTransitions  # noqa: E402
 class PILGL(GraphicsLayer):
     # tk.Tk() must be a singleton!
     # https://stackoverflow.com/questions/26097811/image-pyimage2-doesnt-exist
-    window = tk.Tk()
+    if "DISPLAY" in os.environ:
+        window = tk.Tk()
+    else:
+        window = None
 
     RAIL_LAYER = 0
     PREDICTION_PATH_LAYER = 1

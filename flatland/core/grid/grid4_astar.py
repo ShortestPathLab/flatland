@@ -1,4 +1,5 @@
 import numpy as np
+import random
 
 from flatland.core.grid.grid_utils import IntVector2D, IntVector2DDistance
 from flatland.core.grid.grid_utils import IntVector2DArray
@@ -16,6 +17,7 @@ class AStarNode:
         self.g = 0.0
         self.h = 0.0
         self.f = 0.0
+        self.merged = 0.0
 
     def __eq__(self, other):
         """
@@ -24,7 +26,8 @@ class AStarNode:
         ----------
         other : AStarNode
         """
-        return self.pos == other.pos
+        # return False
+        return self.pos == other.pos 
 
     def __hash__(self):
         return hash(self.pos)
@@ -64,6 +67,12 @@ def a_star(grid_map: GridTransitionMap, start: IntVector2D, end: IntVector2D,
 
     start_node = AStarNode(start, None)
     end_node = AStarNode(end, None)
+    start_node.h = a_star_distance_function(start_node.pos, end_node.pos)
+    start_f = start_node.g + start_node.h
+    start_h = start_node.h
+
+    start_node.f = start_node.g + start_node.h
+
     open_nodes = OrderedSet()
     closed_nodes = OrderedSet()
     open_nodes.add(start_node)
@@ -76,14 +85,75 @@ def a_star(grid_map: GridTransitionMap, start: IntVector2D, end: IntVector2D,
                 current_node = item
                 continue
             if item.f < current_node.f:
-                current_node = item
+                    current_node = item
+            # elif item.g== current_node.g and item.merged > current_node.merged:
+            #         current_node = item
+
+
+        for item in open_nodes:
+            
+
+            if item.f <3 * start_f:
+                # if item.h - start_h >= 0 and current_node.h - start_h >= 0 and item.h < current_node.h:
+                #     current_node = item
+                # elif item.h - start_h < 0 and current_node.h - start_h >= 0: 
+                #     current_node = item
+                # el
+                if item.merged == 0 and current_node.merged==0 and item.g < current_node.g:
+                    current_node = item
+                elif item.merged > current_node.merged:
+                    current_node = item
+                elif item.merged  == current_node.merged and item.h < current_node.h:
+                    current_node = item
+                elif item.merged  == current_node.merged and item.h == current_node.h and item.g > current_node.g:
+                    current_node = item
+
+            elif item.f >=3* start_f and current_node.f >=3* start_f:
+                if item.f < current_node.f:
+                    current_node = item
+                elif item.f == current_node.f and item.merged > current_node.merged:
+                    current_node = item
+                elif item.f == current_node.f and item.merged == current_node.merged and item.h < current_node.h :
+                    current_node = item
+                elif item.f == current_node.f and item.merged == current_node.merged and item.h == current_node.h and random.sample([True,False],1):
+                    current_node = item
+
+
+            
+
+            # if item.f > 1.3 * start_f and current_node.f  > 1.3 * start_f:
+            #     if item.f < current_node.f:
+            #         current_node = item
+            #     elif  item.f == current_node.f and item.merged > current_node.merged:
+            #         current_node = item
+            #     elif  item.f == current_node.f  and random.sample([True,False],1):
+            #         current_node = item
+            # if item.f <= 1.3 * start_f and current_node.f  > 1.3 * start_f:
+            #     current_node = item
+            # elif item.f <= 1.3 * start_f:
+            #     if item.h - start_h < 0 and item.merged>current_node.merged:
+            #         current_node = item
+            #     elif item.h - start_h < 0 and item.g>current_node.g:
+            #         current_node = item
+            #     elif item.h - start_h < 0 and  item.h > current_node.h :
+            #         current_node = item
+            #     elif item.h - start_h < 0 and random.sample([True,False],1):
+            #         current_node = item
+            #     elif item.h - start_h > 0 and current_node.h - start_h > 0 and item.h < current_node.h:
+            #         current_node = item
+
+                
+            # elif item.g == current_node.g and item.h < current_node.h:
+            #     current_node = item
+             
 
         # pop current off open list, add to closed list
         open_nodes.remove(current_node)
         closed_nodes.add(current_node)
 
         # found the goal
-        if current_node == end_node:
+        if current_node.pos == end_node.pos :
+
             path = []
             current = current_node
             while current is not None:
@@ -125,21 +195,43 @@ def a_star(grid_map: GridTransitionMap, start: IntVector2D, end: IntVector2D,
 
         # loop through children
         for child in children:
-            # already in closed list?
-            if child in closed_nodes:
-                continue
+
 
             # create the f, g, and h values
             child.g = current_node.g + 1.0
             # this heuristic avoids diagonal paths
+            child.merged = child.parent.merged+grid_map.reserve[child.pos] * np.clip(grid_map.grid[child.pos], 0, 1)
+
             if avoid_rails:
                 child.h = a_star_distance_function(child.pos, end_node.pos) + np.clip(grid_map.grid[child.pos], 0, 1)
             else:
-                child.h = a_star_distance_function(child.pos, end_node.pos)
+                child.h = a_star_distance_function(child.pos, end_node.pos) #+ 20 - np.clip(grid_map.grid[child.pos], 0, 1)*10  #- 10 if child.merged > 0 and np.clip(grid_map.grid[child.pos], 0, 1) ==0 else 0
             child.f = child.g + child.h
+
+            # if child.f >  start_f + grid_map.width//5 :
+            #     continue
+
+            # already in closed list?
+            if child in closed_nodes:
+                # for key in closed_nodes.keys():
+                #     if key == child:
+                #         if  child.merged == key.merged and child.h < key.h:
+                #             closed_nodes.remove(key)
+                #             open_nodes.add(child)
+                #         break
+                continue
 
             # already in the open list?
             if child in open_nodes:
+                for key in open_nodes.keys():
+                    if key == child:
+                        if  child.merged > key.merged :
+                            open_nodes.remove(key)
+                            open_nodes.add(child)
+                        elif  child.merged == key.merged and child.h < key.h:
+                            open_nodes.remove(key)
+                            open_nodes.add(child)
+                        break
                 continue
 
             # add the child to the open list

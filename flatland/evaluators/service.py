@@ -41,7 +41,7 @@ m.patch()
 ########################################################
 # CONSTANTS
 ########################################################
-PER_STEP_TIMEOUT = 10 * 60  # 5 minutes
+PER_STEP_TIMEOUT = 10 * 60 * 10  # 5 minutes
 RANDOM_SEED = int(os.getenv("FLATLAND_EVALUATION_RANDOM_SEED", 1001))
 SUPPORTED_CLIENT_VERSIONS = \
     [

@@ -24,7 +24,10 @@ from flatland.envs.rail_generators import rail_from_file
 from flatland.envs.schedule_generators import schedule_from_file
 from flatland.evaluators import aicrowd_helpers
 from flatland.evaluators import messages
-from flatland.utils.rendertools import RenderTool
+try:
+    from flatland.utils.rendertools import RenderTool
+except:
+    print("failed render tool")
 
 use_signals_in_timeout = True
 if os.name == 'nt':

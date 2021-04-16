@@ -12,8 +12,10 @@ from flatland.envs.rail_env import RailEnv
 from flatland.envs.rail_generators import complex_rail_generator
 from flatland.envs.schedule_generators import complex_schedule_generator
 from flatland.evaluators.service import FlatlandRemoteEvaluationService
-from flatland.utils.rendertools import RenderTool
-
+try:
+    from flatland.utils.rendertools import RenderTool
+except:
+    print("load rendertool failed")
 
 @click.command()
 def demo(args=None):

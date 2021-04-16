@@ -221,6 +221,10 @@ class FlatlandRemoteEvaluationService:
             password=self.remote_password
         )
         self.redis_conn = redis.Redis(connection_pool=self.redis_pool)
+        try:
+            self.redis_conn.delete(self.command_channel)
+        except Exception as e:
+            print("Cannot delete command_channel:",e)
 
     def get_redis_connection(self):
         """

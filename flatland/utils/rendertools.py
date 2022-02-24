@@ -8,6 +8,7 @@ from numpy import array
 from recordtype import recordtype
 
 from flatland.utils.graphics_pil import PILGL, PILSVG
+from flatland.utils.graphics_pgl import PGLGL
 
 
 # TODO: suggested renaming to RailEnvRenderTool, as it will only work with RailEnv!
@@ -21,6 +22,104 @@ class AgentRenderVariant(IntEnum):
 
 
 class RenderTool(object):
+    """ RenderTool is a facade to a renderer.
+        (This was introduced for the Browser / JS renderer which has now been removed.)
+    """
+    def __init__(self, env, gl="PGL", jupyter=False,
+                 agent_render_variant=AgentRenderVariant.ONE_STEP_BEHIND,
+                 show_debug=False, clear_debug_text=True, screen_width=800, screen_height=600,
+                 host="localhost", port=None):
+
+        self.env = env
+        self.frame_nr = 0
+        self.start_time = time.time()
+        self.times_list = deque()
+
+        self.agent_render_variant = agent_render_variant
+
+        if gl in ["PIL", "PILSVG", "PGL"]:
+            self.renderer = RenderLocal(env, gl, jupyter,
+                 agent_render_variant,
+                 show_debug, clear_debug_text, screen_width, screen_height)
+            self.gl = self.renderer.gl
+        else:
+            print("[", gl, "] not found, switch to PGL")
+
+    def render_env(self,
+                   show=False,  # whether to call matplotlib show() or equivalent after completion
+                   show_agents=True,  # whether to include agents
+                   show_inactive_agents=False,  # whether to show agents before they start
+                   show_observations=True,  # whether to include observations
+                   show_predictions=False,  # whether to include predictions
+                   frames=False,  # frame counter to show (intended since invocation)
+                   episode=None,  # int episode number to show
+                   step=None,  # int step number to show in image
+                   selected_agent=None,  # indicate which agent is "selected" in the editor):
+                   return_image=False): # indicate if image is returned for use in monitor:
+        return self.renderer.render_env(show, show_agents, show_inactive_agents, show_observations,
+                    show_predictions, frames, episode, step, selected_agent, return_image)
+
+    def close_window(self):
+        self.renderer.close_window()
+
+    def reset(self):
+        self.renderer.reset()
+    
+    def set_new_rail(self):
+        self.renderer.set_new_rail()
+        self.renderer.env = self.env  # bit of a hack - copy our env to the delegate
+
+    def update_background(self):
+        self.renderer.update_background()
+    
+    def get_endpoint_URL(self):
+        """ Returns a string URL for the root of the HTTP server
+            TODO: Need to update this work work on a remote server!  May be tricky...
+        """
+        #return "http://localhost:{}".format(self.renderer.get_port())
+        if hasattr(self.renderer, "get_endpoint_url"):
+            return self.renderer.get_endpoint_url()
+        else:
+            print("Attempt to get_endpoint_url from RenderTool - only supported with BROWSER")
+            return None
+
+    def get_image(self):
+        """ 
+        """
+        if hasattr(self.renderer, "gl"):
+            return self.renderer.gl.get_image()
+        else:
+            print("Attempt to retrieve image from RenderTool - not supported with BROWSER")
+            return None
+
+
+class RenderBase(object):
+    def __init__(self, env):
+        pass
+
+    def render_env(self):
+        pass
+
+    def close_window(self):
+        pass
+
+    def reset(self):
+        pass
+
+    def set_new_rail(self):
+        """ Signal to the renderer that the env has changed and will need re-rendering.
+        """
+        pass
+
+    def update_background(self):
+        """ A lesser version of set_new_rail?  
+            TODO: can update_background be pruned for simplicity?
+        """
+        pass
+
+
+
+class RenderLocal(RenderBase):
     """ Class to render the RailEnv and agents.
         Uses two layers, layer 0 for rails (mostly static), layer 1 for agents etc (dynamic)
         The lower / rail layer 0 is only redrawn after set_new_rail() has been called.
@@ -50,13 +149,17 @@ class RenderTool(object):
 
         self.agent_render_variant = agent_render_variant
 
+        self.gl_str = gl
+
         if gl == "PIL":
             self.gl = PILGL(env.width, env.height, jupyter, screen_width=screen_width, screen_height=screen_height)
         elif gl == "PILSVG":
             self.gl = PILSVG(env.width, env.height, jupyter, screen_width=screen_width, screen_height=screen_height)
         else:
-            print("[", gl, "] not found, switch to PILSVG")
-            self.gl = PILSVG(env.width, env.height, jupyter, screen_width=screen_width, screen_height=screen_height)
+            if gl != "PGL":
+                print("[", gl, "] not found, switch to PGL, PILSVG")
+                print("Using PGL")
+            self.gl = PGLGL(env.width, env.height, jupyter, screen_width=screen_width, screen_height=screen_height)
 
         self.new_rail = True
         self.show_debug = show_debug
@@ -80,6 +183,7 @@ class RenderTool(object):
         for agent_idx, agent in enumerate(self.env.agents):
             if agent is None:
                 continue
+            #print(f"updatebg: {agent_idx} {agent.target}")
             targets[tuple(agent.target)] = agent_idx
         self.gl.build_background_map(targets)
 
@@ -401,31 +505,39 @@ class RenderTool(object):
     def render_env(self,
                    show=False,  # whether to call matplotlib show() or equivalent after completion
                    show_agents=True,  # whether to include agents
+                   show_inactive_agents=False,
                    show_observations=True,  # whether to include observations
                    show_predictions=False,  # whether to include predictions
                    frames=False,  # frame counter to show (intended since invocation)
                    episode=None,  # int episode number to show
                    step=None,  # int step number to show in image
-                   selected_agent=None):  # indicate which agent is "selected" in the editor
+                   selected_agent=None,  # indicate which agent is "selected" in the editor
+                   return_image=False): # indicate if image is returned for use in monitor:
         """ Draw the environment using the GraphicsLayer this RenderTool was created with.
             (Use show=False from a Jupyter notebook with %matplotlib inline)
         """
-        if type(self.gl) is PILSVG:
-            self.render_env_svg(show=show,
+
+        # if type(self.gl) is PILSVG:
+        if self.gl_str in ["PILSVG", "PGL"]:
+            return self.render_env_svg(show=show,
                                 show_observations=show_observations,
                                 show_predictions=show_predictions,
                                 selected_agent=selected_agent,
-                                show_agents=show_agents
+                                show_agents=show_agents,
+                                show_inactive_agents=show_inactive_agents,
+                                return_image=return_image
                                 )
         else:
-            self.render_env_pil(show=show,
+            return self.render_env_pil(show=show,
                                 show_agents=show_agents,
+                                show_inactive_agents=show_inactive_agents,
                                 show_observations=show_observations,
                                 show_predictions=show_predictions,
                                 frames=frames,
                                 episode=episode,
                                 step=step,
-                                selected_agent=selected_agent
+                                selected_agent=selected_agent,
+                                return_image=return_image
                                 )
 
     def _draw_square(self, center, size, color, opacity=255, layer=0):
@@ -442,12 +554,14 @@ class RenderTool(object):
                        show=False,  # whether to call matplotlib show() or equivalent after completion
                        # use false when calling from Jupyter.  (and matplotlib no longer supported!)
                        show_agents=True,  # whether to include agents
+                       show_inactive_agents=False, 
                        show_observations=True,  # whether to include observations
                        show_predictions=False,  # whether to include predictions
                        frames=False,  # frame counter to show (intended since invocation)
                        episode=None,  # int episode number to show
                        step=None,  # int step number to show in image
-                       selected_agent=None  # indicate which agent is "selected" in the editor
+                       selected_agent=None,  # indicate which agent is "selected" in the editor
+                       return_image=False # indicate if image is returned for use in monitor:
                        ):
 
         if type(self.gl) is PILGL:
@@ -495,11 +609,13 @@ class RenderTool(object):
 
         self.gl.pause(0.00001)
 
+        if return_image:
+            return self.get_image()
         return
 
     def render_env_svg(
         self, show=False, show_observations=True, show_predictions=False, selected_agent=None,
-        show_agents=True
+        show_agents=True, show_inactive_agents=False, return_image=False
     ):
         """
         Renders the environment with SVG support (nice image)
@@ -539,26 +655,55 @@ class RenderTool(object):
 
             self.gl.build_background_map(targets)
 
+            # label rows, cols
+            for iRow in range(env.height):
+                self.gl.text_rowcol((iRow, 0), str(iRow), layer=self.gl.RAIL_LAYER)
+            for iCol in range(env.width):
+                self.gl.text_rowcol((0, iCol), str(iCol), layer=self.gl.RAIL_LAYER)
+
+
         if show_agents:
             for agent_idx, agent in enumerate(self.env.agents):
 
-                if agent is None or agent.position is None:
+                if agent is None:
+                    continue
+
+                # Show an agent even if it hasn't already started
+                if show_inactive_agents and (agent.position is None):
+                    # print("agent ", agent_idx, agent.position, agent.old_position, agent.initial_position)
+                    self.gl.set_agent_at(agent_idx, *(agent.initial_position), 
+                        agent.initial_direction, agent.initial_direction,
+                        is_selected=(selected_agent == agent_idx),
+                        rail_grid=env.rail.grid,
+                        show_debug=self.show_debug, clear_debug_text=self.clear_debug_text,
+                        malfunction=False)
                     continue
 
                 is_malfunction = agent.malfunction_data["malfunction"] > 0
 
                 if self.agent_render_variant == AgentRenderVariant.BOX_ONLY:
                     self.gl.set_cell_occupied(agent_idx, *(agent.position))
+
                 elif self.agent_render_variant == AgentRenderVariant.ONE_STEP_BEHIND or \
                     self.agent_render_variant == AgentRenderVariant.ONE_STEP_BEHIND_AND_BOX:  # noqa: E125
+
+                    # Most common case - the agent has been running for >1 steps
                     if agent.old_position is not None:
                         position = agent.old_position
                         direction = agent.direction
                         old_direction = agent.old_direction
-                    else:
+
+                    # the agent's first step - it doesn't have an old position yet
+                    elif agent.position is not None:
                         position = agent.position
                         direction = agent.direction
                         old_direction = agent.direction
+                        
+                    # When the editor has just added an agent
+                    elif agent.initial_position is not None:
+                        position = agent.initial_position
+                        direction = agent.initial_direction
+                        old_direction = agent.initial_direction
 
                     # set_agent_at uses the agent index for the color
                     if self.agent_render_variant == AgentRenderVariant.ONE_STEP_BEHIND_AND_BOX:
@@ -592,12 +737,17 @@ class RenderTool(object):
             self.render_observation(range(env.get_num_agents()), env.dev_obs_dict)
         if show_predictions:
             self.render_prediction(range(env.get_num_agents()), env.dev_pred_dict)
+        
+
+
         if show:
             self.gl.show()
         for i in range(3):
             self.gl.process_events()
 
         self.frame_nr += 1
+        if return_image:
+            return self.get_image()
         return
 
     def close_window(self):

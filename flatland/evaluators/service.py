@@ -12,6 +12,7 @@ import crowdai_api
 import msgpack
 import msgpack_numpy as m
 import numpy as np
+import pandas as pd
 import redis
 import timeout_decorator
 
@@ -24,10 +25,7 @@ from flatland.envs.rail_generators import rail_from_file
 from flatland.envs.schedule_generators import schedule_from_file
 from flatland.evaluators import aicrowd_helpers
 from flatland.evaluators import messages
-try:
-    from flatland.utils.rendertools import RenderTool
-except:
-    print("failed render tool")
+from flatland.utils.rendertools import RenderTool
 
 use_signals_in_timeout = True
 if os.name == 'nt':
@@ -44,7 +42,18 @@ m.patch()
 ########################################################
 # CONSTANTS
 ########################################################
-PER_STEP_TIMEOUT = 10 * 60 * 50  # 5 minutes
+INTIAL_PLANNING_TIMEOUT = int(os.getenv(
+                                "FLATLAND_INITIAL_PLANNING_TIMEOUT",
+                                5 * 60))  # 5 mins
+PER_STEP_TIMEOUT = int(os.getenv(
+                                "FLATLAND_PER_STEP_TIMEOUT",
+                                5))  # 5 seconds
+DEFAULT_COMMAND_TIMEOUT = int(os.getenv(
+                                "FLATLAND_DEFAULT_COMMAND_TIMEOUT",
+                                1 * 60))  # 1 min
+# This applies to the rest of the commands
+
+
 RANDOM_SEED = int(os.getenv("FLATLAND_EVALUATION_RANDOM_SEED", 1001))
 SUPPORTED_CLIENT_VERSIONS = \
     [
@@ -83,6 +92,7 @@ class FlatlandRemoteEvaluationService:
                  visualize=False,
                  video_generation_envs=[],
                  report=None,
+                 result_output_path=None,
                  verbose=False):
 
         # Test Env folder Paths
@@ -93,10 +103,13 @@ class FlatlandRemoteEvaluationService:
         print(self.env_file_paths)
         # Shuffle all the env_file_paths for more exciting videos
         # and for more uniform time progression
+        self.instantiate_evaluation_metadata()
 
         # Logging and Reporting related vars
         self.verbose = verbose
         self.report = report
+
+        self.result_output_path = result_output_path
 
         # Communication Protocol Related vars
         self.namespace = "flatland-rl"
@@ -129,12 +142,16 @@ class FlatlandRemoteEvaluationService:
             }
         }
         self.stats = {}
+        self.previous_command = {
+            "type": None
+        }
 
         # RailEnv specific variables
         self.env = False
         self.env_renderer = False
         self.reward = 0
         self.simulation_count = -1
+        self.simulation_env_file_paths = []
         self.simulation_rewards = []
         self.simulation_rewards_normalized = []
         self.simulation_percentage_complete = []
@@ -155,20 +172,50 @@ class FlatlandRemoteEvaluationService:
                 shutil.rmtree(self.vizualization_folder_name)
             os.mkdir(self.vizualization_folder_name)
 
-    def update_running_mean_stats(self, key, scalar):
+    def update_running_stats(self, key, scalar):
         """
         Computes the running mean for certain params
         """
         mean_key = "{}_mean".format(key)
         counter_key = "{}_counter".format(key)
+        min_key = "{}_min".format(key)
+        max_key = "{}_max".format(key)
 
         try:
+            # Update Mean
             self.stats[mean_key] = \
                 ((self.stats[mean_key] * self.stats[counter_key]) + scalar) / (self.stats[counter_key] + 1)
+            # Update min
+            if scalar < self.stats[min_key]:
+                self.stats[min_key] = scalar
+            # Update max
+            if scalar > self.stats[max_key]:
+                self.stats[max_key] = scalar
+
             self.stats[counter_key] += 1
         except KeyError:
-            self.stats[mean_key] = 0
-            self.stats[counter_key] = 0
+            self.stats[mean_key] = scalar
+            self.stats[min_key] = scalar
+            self.stats[max_key] = scalar
+            self.stats[counter_key] = 1
+
+    def delete_key_in_running_stats(self, key):
+        """
+        This deletes a particular key in the running stats
+        dictionary, if it exists
+        """
+        mean_key = "{}_mean".format(key)
+        counter_key = "{}_counter".format(key)
+        min_key = "{}_min".format(key)
+        max_key = "{}_max".format(key)
+
+        try:
+            del mean_key
+            del counter_key
+            del min_key
+            del max_key
+        except KeyError:
+            pass
 
     def get_env_filepaths(self):
         """
@@ -202,6 +249,86 @@ class FlatlandRemoteEvaluationService:
         ) for x in env_paths])
 
         return env_paths
+    
+    def instantiate_evaluation_metadata(self):
+        """
+            This instantiates a pandas dataframe to record
+            information specific to each of the individual env evaluations.
+
+            This loads the template CSV with pre-filled information from the
+            provided metadata.csv file, and fills it up with 
+            evaluation runtime information.
+        """
+        self.evaluation_metadata_df = None
+        metadata_file_path = os.path.join(
+                self.test_env_folder,
+                "metadata.csv"
+            )
+        if os.path.exists(metadata_file_path):
+            self.evaluation_metadata_df = pd.read_csv(metadata_file_path)
+            self.evaluation_metadata_df["filename"] = \
+                self.evaluation_metadata_df["test_id"] + \
+                "/" + self.evaluation_metadata_df["env_id"] + ".pkl"
+            self.evaluation_metadata_df = self.evaluation_metadata_df.set_index("filename")
+
+            # Add custom columns for evaluation specific metrics
+            self.evaluation_metadata_df["reward"] = np.nan
+            self.evaluation_metadata_df["normalized_reward"] = np.nan
+            self.evaluation_metadata_df["percentage_complete"] = np.nan
+            self.evaluation_metadata_df["steps"] = np.nan
+            self.evaluation_metadata_df["simulation_time"] = np.nan
+
+            # Add client specific columns
+            # TODO: This needs refactoring
+            self.evaluation_metadata_df["controller_inference_time_min"] = np.nan
+            self.evaluation_metadata_df["controller_inference_time_mean"] = np.nan
+            self.evaluation_metadata_df["controller_inference_time_max"] = np.nan
+        else:
+            raise Exception("metadata.csv not found in tests folder. Please use an updated version of the test set.")
+
+    def update_evaluation_metadata(self):
+        """
+        This function is called when we move from one simulation to another
+        and it simply tries to update the simulation specific information 
+        for the **previous** episode in the metadata_df if it exists.
+        """
+        if self.evaluation_metadata_df is not None and len(self.simulation_env_file_paths) > 0:
+            
+            last_simulation_env_file_path = self.simulation_env_file_paths[-1]
+
+            _row = self.evaluation_metadata_df.loc[
+                last_simulation_env_file_path
+            ]
+
+            _row.reward = self.simulation_rewards[-1]
+            _row.normalized_reward = self.simulation_rewards_normalized[-1]
+            _row.percentage_complete = self.simulation_percentage_complete[-1]
+            _row.steps = self.simulation_steps[-1]
+            _row.simulation_time = self.simulation_times[-1]
+
+            # TODO: This needs refactoring
+            # Add controller_inference_time_metrics
+            _row.controller_inference_time_min = self.stats[
+                "current_episode_controller_inference_time_min"
+            ]
+            _row.controller_inference_time_mean = self.stats[
+                "current_episode_controller_inference_time_mean"
+            ]
+            _row.controller_inference_time_max = self.stats[
+                "current_episode_controller_inference_time_max"
+            ]
+
+            self.evaluation_metadata_df.loc[
+                last_simulation_env_file_path
+            ] = _row
+
+            # Delete this key from the stats to ensure that it 
+            # gets computed again from scratch in the next episode
+            self.delete_key_in_running_stats(
+                "current_episode_controller_inference_time")
+
+            if self.verbose:
+                print(self.evaluation_metadata_df)
 
     def instantiate_redis_connection_pool(self):
         """
@@ -221,10 +348,6 @@ class FlatlandRemoteEvaluationService:
             password=self.remote_password
         )
         self.redis_conn = redis.Redis(connection_pool=self.redis_pool)
-        try:
-            self.redis_conn.delete(self.command_channel)
-        except Exception as e:
-            print("Cannot delete command_channel:",e)
 
     def get_redis_connection(self):
         """
@@ -243,19 +366,6 @@ class FlatlandRemoteEvaluationService:
         _response['payload'] = payload
         return _response
 
-    @timeout_decorator.timeout(
-        PER_STEP_TIMEOUT,
-        use_signals=use_signals_in_timeout)  # timeout for each command
-    def _get_next_command(self, _redis):
-        """
-        A low level wrapper for obtaining the next command from a
-        pre-agreed command channel.
-        At the momment, the communication protocol uses lpush for pushing
-        in commands, and brpop for reading out commands.
-        """
-        command = _redis.brpop(self.command_channel)[1]
-        return command
-
     def get_next_command(self):
         """
         A helper function to obtain the next command, which transparently
@@ -263,14 +373,59 @@ class FlatlandRemoteEvaluationService:
         packed message, and consider the timeouts, etc when trying to
         fetch a new command.
         """
+        
+        COMMAND_TIMEOUT = DEFAULT_COMMAND_TIMEOUT
+        """
+        Handle case specific timeouts :
+            - INTIAL_PLANNING_TIMEOUT
+                The timeout between an env_create call and the first env_step call
+            - PER_STEP_TIMEOUT
+                The timeout between two consecutive env_step calls
+        """
+        if self.previous_command['type'] == messages.FLATLAND_RL.ENV_CREATE:
+            """
+            In case the previous command is an env_create, then leave 
+            a but more time for the intial planning
+            """
+            COMMAND_TIMEOUT = INTIAL_PLANNING_TIMEOUT
+        elif self.previous_command['type'] == messages.FLATLAND_RL.ENV_STEP:
+            """
+            Use the per_step_time for all timesteps between two env_step calls
+            # Corner Case : 
+                - Are there any reasons why a call between the last env_step call 
+                and the subsequent env_create call will take an excessively large 
+                amount of time (>5s in this case)
+            """
+            COMMAND_TIMEOUT = PER_STEP_TIMEOUT
+        elif self.previous_command['type'] == messages.FLATLAND_RL.ENV_SUBMIT:
+            """
+            If the user has already done an env_submit call, then the timeout 
+            can be an arbitrarily large number.
+            """
+            COMMAND_TIMEOUT = 10**6
+
+        @timeout_decorator.timeout(
+            COMMAND_TIMEOUT,
+            use_signals=use_signals_in_timeout)  # timeout for each command
+        def _get_next_command(command_channel, _redis):
+            """
+            A low level wrapper for obtaining the next command from a
+            pre-agreed command channel.
+            At the momment, the communication protocol uses lpush for pushing
+            in commands, and brpop for reading out commands.
+            """
+            command = _redis.brpop(command_channel)[1]
+            return command
+
         try:
             _redis = self.get_redis_connection()
-            command = self._get_next_command(_redis)
+            command = _get_next_command(self.command_channel, _redis)
             if self.verbose or self.report:
                 print("Command Service: ", command)
         except timeout_decorator.timeout_decorator.TimeoutError:
             raise Exception(
-                "Timeout in step {} of simulation {}".format(
+                "Timeout of {}s in step {} of simulation {}".format(
+                    COMMAND_TIMEOUT,
                     self.current_step,
                     self.simulation_count
                 ))
@@ -283,7 +438,7 @@ class FlatlandRemoteEvaluationService:
             print("Received Request : ", command)
 
         message_queue_latency = time.time() - command["timestamp"]
-        self.update_running_mean_stats("message_queue_latency", message_queue_latency)
+        self.update_running_stats("message_queue_latency", message_queue_latency)
         return command
 
     def send_response(self, _command_response, command, suppress_logs=False):
@@ -351,8 +506,19 @@ class FlatlandRemoteEvaluationService:
             if self.begin_simulation:
                 # If begin simulation has already been initialized
                 # atleast once
+                # This adds the simulation time for the previous episode
                 self.simulation_times.append(time.time() - self.begin_simulation)
             self.begin_simulation = time.time()
+
+            # Update evaluation metadata for the previous episode
+            self.update_evaluation_metadata()
+
+            # Start adding placeholders for the new episode
+            self.simulation_env_file_paths.append(
+                os.path.relpath(
+                    test_env_file_path,
+                    self.test_env_folder
+                ))  # relative path
 
             self.simulation_rewards.append(0)
             self.simulation_rewards_normalized.append(0)
@@ -399,9 +565,9 @@ class FlatlandRemoteEvaluationService:
         progress = np.clip(
             self.simulation_count * 1.0 / len(self.env_file_paths),
             0, 1)
-        mean_reward = round(np.mean(self.simulation_rewards), 2)
-        mean_normalized_reward = round(np.mean(self.simulation_rewards_normalized), 2)
-        mean_percentage_complete = round(np.mean(self.simulation_percentage_complete), 3)
+
+        mean_reward, mean_normalized_reward, mean_percentage_complete = self.compute_mean_scores()
+
         self.evaluation_state["state"] = "IN_PROGRESS"
         self.evaluation_state["progress"] = progress
         self.evaluation_state["simulation_count"] = self.simulation_count
@@ -426,10 +592,17 @@ class FlatlandRemoteEvaluationService:
                 has done['__all__']==True")
 
         action = _payload['action']
+        inference_time = _payload['inference_time']
+        # We record this metric in two keys:
+        #   - One for the current episode
+        #   - One global
+        self.update_running_stats("current_episode_controller_inference_time", inference_time)
+        self.update_running_stats("controller_inference_time", inference_time)
+
         time_start = time.time()
         _observation, all_rewards, done, info = self.env.step(action)
         time_diff = time.time() - time_start
-        self.update_running_mean_stats("internal_env_step_time", time_diff)
+        self.update_running_stats("internal_env_step_time", time_diff)
 
         cumulative_reward = sum(all_rewards.values())
         self.simulation_rewards[-1] += cumulative_reward
@@ -442,7 +615,7 @@ class FlatlandRemoteEvaluationService:
         """
         self.simulation_rewards_normalized[-1] += \
             cumulative_reward / (
-                self.env._max_episode_steps +
+                self.env._max_episode_steps *
                 self.env.get_num_agents()
             )
 
@@ -492,11 +665,21 @@ class FlatlandRemoteEvaluationService:
         print("=" * 100)
         for _key in self.stats:
             if _key.endswith("_mean"):
-                print("\t - {}\t:{}".format(_key, self.stats[_key]))
+                metric_name = _key.replace("_mean", "")
+                mean_key = "{}_mean".format(metric_name)
+                min_key = "{}_min".format(metric_name)
+                max_key = "{}_max".format(metric_name)
+                print("\t - {}\t => min: {} || mean: {} || max: {}".format(
+                            metric_name,
+                            self.stats[min_key],
+                            self.stats[mean_key],
+                            self.stats[max_key]))
         print("=" * 100)
 
         # Register simulation time of the last episode
         self.simulation_times.append(time.time() - self.begin_simulation)
+        # Compute the evaluation metadata for the last episode
+        self.update_evaluation_metadata()
 
         if len(self.simulation_rewards) != len(self.env_file_paths):
             raise Exception(
@@ -505,10 +688,7 @@ class FlatlandRemoteEvaluationService:
                 """
             )
 
-        mean_reward = round(np.sum(self.simulation_rewards), 2)
-        mean_normalized_reward = round(np.sum(self.simulation_rewards_normalized), 2)
-        print(self.simulation_rewards_normalized)
-        mean_percentage_complete = round(np.mean(self.simulation_percentage_complete), 3)
+        mean_reward, mean_normalized_reward, mean_percentage_complete = self.compute_mean_scores()
 
         if self.visualize and len(os.listdir(self.vizualization_folder_name)) > 0:
             # Generate the video
@@ -543,6 +723,20 @@ class FlatlandRemoteEvaluationService:
             else:
                 print("[WARNING] Ignoring uploading of video to S3")
 
+        #####################################################################
+        # Write Results to a file (if applicable)
+        #####################################################################
+        if self.result_output_path:
+            self.evaluation_metadata_df.to_csv(self.result_output_path)
+            print("Wrote output results to : {}".format(self.result_output_path))
+            
+            # Upload the metadata file to S3 
+            if aicrowd_helpers.is_grading() and aicrowd_helpers.is_aws_configured():
+                metadata_s3_key = aicrowd_helpers.upload_to_s3(
+                    self.result_output_path
+                )
+                self.evaluation_state["meta"]["private_metadata_s3_key"] = metadata_s3_key
+
         _command_response = {}
         _command_response['type'] = messages.FLATLAND_RL.ENV_SUBMIT_RESPONSE
         _payload = {}
@@ -558,9 +752,11 @@ class FlatlandRemoteEvaluationService:
         self.evaluation_state["state"] = "FINISHED"
         self.evaluation_state["progress"] = 1.0
         self.evaluation_state["simulation_count"] = self.simulation_count
-        self.evaluation_state["score"]["score"] = mean_percentage_complete
-        self.evaluation_state["score"]["score_secondary"] = mean_reward
+        self.evaluation_state["score"]["score"] = mean_normalized_reward
+        self.evaluation_state["score"]["score_secondary"] = mean_percentage_complete
         self.evaluation_state["meta"]["normalized_reward"] = mean_normalized_reward
+        self.evaluation_state["meta"]["reward"] = mean_reward
+        self.evaluation_state["meta"]["percentage_complete"] = mean_percentage_complete
         self.handle_aicrowd_success_event(self.evaluation_state)
         print("#" * 100)
         print("EVALUATION COMPLETE !!")
@@ -570,6 +766,30 @@ class FlatlandRemoteEvaluationService:
         print("# Mean Percentage Complete : {}".format(mean_percentage_complete))
         print("#" * 100)
         print("#" * 100)
+
+    def compute_mean_scores(self):
+        #################################################################################
+        #################################################################################
+        # Compute the mean rewards, mean normalized_reward and mean_percentage_complete
+        # we group all the results by the test_ids
+        # so we first compute the mean in each of the test_id groups, 
+        # and then we compute the mean across each of the test_id groups
+        #
+        #
+        #################################################################################
+        #################################################################################
+        source_df = self.evaluation_metadata_df.dropna()
+        grouped_df = source_df.groupby(['test_id']).mean()
+
+        mean_reward = grouped_df["reward"].mean()
+        mean_normalized_reward = grouped_df["normalized_reward"].mean()
+        mean_percentage_complete = grouped_df["percentage_complete"].mean()
+        # Round off the reward values
+        mean_reward = round(mean_reward, 2)
+        mean_normalized_reward = round(mean_normalized_reward, 5)
+        mean_percentage_complete = round(mean_percentage_complete, 3)
+
+        return mean_reward, mean_normalized_reward, mean_percentage_complete
 
     def report_error(self, error_message, command_response_channel):
         """
@@ -625,9 +845,9 @@ class FlatlandRemoteEvaluationService:
                 print("Self.Reward : ", self.reward)
                 print("Current Simulation : ", self.simulation_count)
                 if self.env_file_paths and \
-                    self.simulation_count < len(self.env_file_paths):
+                        self.simulation_count < len(self.env_file_paths):
                     print("Current Env Path : ",
-                          self.env_file_paths[self.simulation_count])
+                        self.env_file_paths[self.simulation_count])
 
             try:
                 if command['type'] == messages.FLATLAND_RL.PING:
@@ -660,7 +880,6 @@ class FlatlandRemoteEvaluationService:
 
                     print("Overall Message Queue Latency : ", np.array(MESSAGE_QUEUE_LATENCY).mean())
                     self.handle_env_submit(command)
-                    break
                 else:
                     _error = self._error_template(
                         "UNKNOWN_REQUEST:{}".format(
@@ -671,6 +890,16 @@ class FlatlandRemoteEvaluationService:
                         _error,
                         command['response_channel'])
                     return _error
+                ###########################################
+                # We keep a record of the previous command
+                # to be able to have different behaviors 
+                # between different "command transitions"
+                # 
+                # An example use case, is when we want to 
+                # have a different timeout for the 
+                # first step in every environment 
+                # to account for some initial planning time
+                self.previous_command = command
             except Exception as e:
                 print("Error : ", str(e))
                 print(traceback.format_exc())
@@ -700,9 +929,10 @@ if __name__ == "__main__":
     grader = FlatlandRemoteEvaluationService(
         test_env_folder=test_folder,
         flatland_rl_service_id=args.service_id,
-        verbose=True,
+        verbose=False,
         visualize=True,
-        video_generation_envs=["Test_0/Level_1.pkl"]
+        video_generation_envs=["Test_0/Level_100.pkl"],
+        result_output_path="/tmp/output.csv"
     )
     result = grader.run()
     if result['type'] == messages.FLATLAND_RL.ENV_SUBMIT_RESPONSE:

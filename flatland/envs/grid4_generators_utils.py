@@ -15,7 +15,6 @@ from flatland.core.grid.grid_utils import Vec2dOperations as Vec2d
 from flatland.core.transition_map import GridTransitionMap, RailEnvTransitions
 
 
-
 def connect_rail_in_grid_map(grid_map: GridTransitionMap, start: IntVector2D, end: IntVector2D,
                              rail_trans: RailEnvTransitions,
                              a_star_distance_function: IntVector2DDistance = Vec2d.get_manhattan_distance,
@@ -70,7 +69,6 @@ def connect_rail_in_grid_map(grid_map: GridTransitionMap, start: IntVector2D, en
             # set the backwards path
             new_trans = rail_trans.set_transition(new_trans, mirror(new_dir), mirror(current_dir), 1)
         grid_map.grid[current_pos] = new_trans
-        grid_map.reserve[current_pos] += 1
 
         if new_pos == end_pos:
             # setup end pos setup

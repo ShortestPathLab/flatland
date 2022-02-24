@@ -12,6 +12,7 @@ from flatland.envs.rail_trainrun_data_structures import Waypoint
 from flatland.envs.schedule_generators import random_schedule_generator
 from flatland.utils.rendertools import RenderTool
 from flatland.utils.simple_rail import make_disconnected_simple_rail, make_simple_rail_with_alternatives
+from flatland.envs.persistence import RailEnvPersister
 
 
 def test_get_shortest_paths_unreachable():
@@ -41,9 +42,32 @@ def test_get_shortest_paths_unreachable():
 # todo file test_002.pkl has to be generated automatically
 # see https://gitlab.aicrowd.com/flatland/flatland/issues/279
 def test_get_shortest_paths():
-    env = load_flatland_environment_from_file('test_002.pkl', 'env_data.tests')
+    #env = load_flatland_environment_from_file('test_002.mpk', 'env_data.tests')
+    env, env_dict = RailEnvPersister.load_new("test_002.mpk", "env_data.tests")
+
+    #print("env len(agents): ", len(env.agents))
+    #print(env.distance_map)
+    #print("env number_of_agents:", env.number_of_agents)
+    
+    #print("env agents:", env.agents)
+
+    #env.distance_map.reset(env.agents, env.rail)
+    
+    #actual = get_shortest_paths(env.distance_map)
+    #print("shortest paths:", actual)
+
+    #print(env.distance_map)
+    #print("Dist map agents:", env.distance_map.agents)
+    
+    #print("\nenv reset()")
     env.reset()
     actual = get_shortest_paths(env.distance_map)
+    #print("env agents: ", len(env.agents))
+    #print("env number_of_agents: ", env.number_of_agents)
+    
+    
+    
+    assert len(actual) == 2, "get_shortest_paths should return a dict of length 2"
 
     expected = {
         0: [
@@ -96,7 +120,8 @@ def test_get_shortest_paths():
 # todo file test_002.pkl has to be generated automatically
 # see https://gitlab.aicrowd.com/flatland/flatland/issues/279
 def test_get_shortest_paths_max_depth():
-    env = load_flatland_environment_from_file('test_002.pkl', 'env_data.tests')
+    #env = load_flatland_environment_from_file('test_002.pkl', 'env_data.tests')
+    env, _ = RailEnvPersister.load_new("test_002.mpk", "env_data.tests")
     env.reset()
     actual = get_shortest_paths(env.distance_map, max_depth=2)
 
@@ -119,7 +144,8 @@ def test_get_shortest_paths_max_depth():
 # todo file Level_distance_map_shortest_path.pkl has to be generated automatically
 # see https://gitlab.aicrowd.com/flatland/flatland/issues/279
 def test_get_shortest_paths_agent_handle():
-    env = load_flatland_environment_from_file('Level_distance_map_shortest_path.pkl', 'env_data.tests')
+    #env = load_flatland_environment_from_file('Level_distance_map_shortest_path.pkl', 'env_data.tests')
+    env, _ = RailEnvPersister.load_new("Level_distance_map_shortest_path.mpk", "env_data.tests")
     env.reset()
     actual = get_shortest_paths(env.distance_map, agent_handle=6)
 
@@ -284,3 +310,9 @@ def test_get_k_shortest_paths(rendering=False):
     ])
 
     assert actual == expected, "actual={},expected={}".format(actual, expected)
+
+def main():
+    test_get_shortest_paths()
+
+if __name__ == "__main__":
+    main()

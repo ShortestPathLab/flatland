@@ -1,6 +1,6 @@
 """Rail generators (infrastructure manager, "Infrastrukturbetreiber")."""
 import sys
-import warnings
+import warnings, copy
 from typing import Callable, Tuple, Optional, Dict, List
 
 import numpy as np
@@ -67,6 +67,7 @@ def complex_rail_generator(nr_start_goal=1,
             num_agents = nr_start_goal
             print("complex_rail_generator: num_agents > nr_start_goal, changing num_agents")
         grid_map = GridTransitionMap(width=width, height=height, transitions=RailEnvTransitions())
+        grid_map.reserve = copy.deepcopy( grid_map.grid)
         rail_array = grid_map.grid
         rail_array.fill(0)
 
@@ -134,9 +135,9 @@ def complex_rail_generator(nr_start_goal=1,
                 # we might as well give up at this point
                 break
 
-            new_path = connect_rail_in_grid_map(grid_map, start, goal, rail_trans, Vec2d.get_chebyshev_distance,
+            new_path = connect_rail_in_grid_map(grid_map, start, goal, rail_trans, Vec2d.get_manhattan_distance,
                                                 flip_start_node_trans=True, flip_end_node_trans=True,
-                                                respect_transition_validity=True, forbidden_cells=None)
+                                                respect_transition_validity=True, forbidden_cells=None,avoid_rail=False)
             if len(new_path) >= 2:
                 nr_created += 1
                 start_goal.append([start, goal])
@@ -161,9 +162,9 @@ def complex_rail_generator(nr_start_goal=1,
                     break
             if not all_ok:
                 break
-            new_path = connect_rail_in_grid_map(grid_map, start, goal, rail_trans, Vec2d.get_chebyshev_distance,
+            new_path = connect_rail_in_grid_map(grid_map, start, goal, rail_trans, Vec2d.get_euclidean_distance,
                                                 flip_start_node_trans=True, flip_end_node_trans=True,
-                                                respect_transition_validity=True, forbidden_cells=None)
+                                                respect_transition_validity=True, forbidden_cells=None,avoid_rail=False)
 
             if len(new_path) >= 2:
                 nr_created += 1

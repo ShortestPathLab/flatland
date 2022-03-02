@@ -133,8 +133,7 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
 
         # Initiate the renderer
         if visualizer:
-            env_renderer = RenderTool(local_env, gl="PILSVG",
-                                      agent_render_variant=AgentRenderVariant.ONE_STEP_BEHIND,
+            env_renderer = RenderTool(local_env,
                                       show_debug=debug,
                                       screen_height=800,  # Adjust these parameters to fit your resolution
                                       screen_width=800)  # Adjust these parameters to fit your resolution
@@ -168,10 +167,16 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
 
 
         time_step = 0
+        out_of_path = False
+        inconsistent = False
         while time_step < local_env._max_episode_steps:
-
-            action_dict, out_of_path, inconsistent = path_controller(time_step, local_env, path_all, debug)
-            statistic_dict["time_step"] = time_step
+            if out_of_path:
+                if debug:
+                    eprint("Reach last location in all paths. Current timestep: {}".format(time_step))
+                    eprint("Can't finish test {}.".format(test_case))
+                    eprint("Press Enter to move to next test:")
+                    input()
+                break
 
             if inconsistent:
                 if debug:
@@ -180,13 +185,11 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
                     eprint("Press Enter to move to next test:")
                     input()
                 break
-            if out_of_path:
-                if debug:
-                    eprint("Reach last location in all paths. Current timestep: {}".format(time_step))
-                    eprint("Can't finish test {}.".format(test_case))
-                    eprint("Press Enter to move to next test:")
-                    input()
-                break
+
+            action_dict, out_of_path, inconsistent = path_controller(time_step, local_env, path_all, debug)
+            statistic_dict["time_step"] = time_step
+
+
 
             # execuate action
             next_obs, all_rewards, done, _ = local_env.step(action_dict)
@@ -206,13 +209,16 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
             statistic_dict["done_percentage"] = round(num_done / len(local_env.agents), 2)
             statistic_dict["sum_of_cost"] += new_cost
 
-            conflict = check_conflict(time_step, path_all, local_env, debug)
-            if conflict:
-                if debug:
-                    eprint("Can't finish test {}. ".format(test_case))
-                    eprint("Press Enter to move to next test:")
-                    input()
-                break
+            if time_step!=0:
+                conflict = check_conflict(time_step, path_all, local_env, debug)
+                if conflict:
+                    if debug:
+                        eprint("Can't finish test {}. ".format(test_case))
+                        eprint("Press Enter to move to next test:")
+                        input()
+                    break
+            if debug:
+                time.sleep(0.2)
 
 
             if (done["__all__"]):

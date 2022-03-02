@@ -69,6 +69,7 @@ def connect_rail_in_grid_map(grid_map: GridTransitionMap, start: IntVector2D, en
             # set the backwards path
             new_trans = rail_trans.set_transition(new_trans, mirror(new_dir), mirror(current_dir), 1)
         grid_map.grid[current_pos] = new_trans
+        grid_map.reserve[current_pos] += 1
 
         if new_pos == end_pos:
             # setup end pos setup

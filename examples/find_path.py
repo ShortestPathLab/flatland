@@ -34,8 +34,9 @@ import glob, os
 try:
     from flatland.envs.rail_env import RailEnv
     from controller import get_action, Train_Actions, Directions, check_conflict, path_controller, evaluator
-except:
-    print("Cannot load flatland modules! Make sure you activated flatland virtual environment with 'conda activate flatland-rl'")
+except Exception as e:
+    print("Cannot load flatland modules! Make sure your flatland-rl is properly installed.")
+    print(e)
     exit(1)
 
 script_path = os.path.dirname(os.path.abspath(__file__))

@@ -33,7 +33,7 @@ import glob, os
 #import necessary modules that this python scripts need.
 try:
     from flatland.envs.rail_env import RailEnv
-    from controller import get_action, Train_Actions, Directions, check_conflict, path_controller, evaluator
+    from flatland.utils.controller import get_action, Train_Actions, Directions, check_conflict, path_controller, evaluator
 except Exception as e:
     print("Cannot load flatland modules! Make sure your flatland-rl is properly installed.")
     print(e)

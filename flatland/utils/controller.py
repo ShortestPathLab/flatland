@@ -1,4 +1,5 @@
 
+from threading import local
 from flatland.envs.rail_env import RailEnv
 from flatland.evaluators.client import FlatlandRemoteClient
 from flatland.envs.observations import TreeObsForRailEnv, GlobalObsForRailEnv
@@ -14,8 +15,8 @@ import numpy as np
 def eprint(*args, **kwargs):
     print("[ERROR] ",*args, file=sys.stderr, **kwargs)
 
-output_template = "{0:15} | {1:15} | {2:15} | {3:15} | {4:15}"
-output_header = output_template.format("Test case", "No. of agents","Agents done", "Sum of cost", "Makespan")
+output_template = "{0:12} | {1:12} | {2:12} | {3:12} | {4:12} | {5:12} | {6:12} | {7:12}"
+output_header = output_template.format("Test case", "No. of agents","Agents done", "Sum of cost", "Makespan","Penalty","Final SIC","P Score")
 
 
 class Train_Actions(IntEnum):
@@ -38,7 +39,10 @@ def path_controller(time_step,local_env: RailEnv, path_all: list, debug=False):
     inconsistent = False
     for agent_id in range(0, len(local_env.agents)):
         if time_step == 0:
-            action_dict[agent_id] = Train_Actions.FORWARD
+            if len(path_all[agent_id]) >0:
+                action_dict[agent_id] = Train_Actions.FORWARD
+            else:
+                action_dict[agent_id] = Train_Actions.NOTHING
             out_of_path = False
         elif time_step >= len(path_all[agent_id]):
             action_dict[agent_id] = Train_Actions.NOTHING
@@ -96,21 +100,16 @@ def check_conflict(time_step,path_all,local_env: RailEnv, debug=False):
                 if i != agent_id and  path_all[agent_id][time_step] == local_env.agents[i].position:
                     conflict_id = i
                     break
-                if i != agent_id and time_step-1 >=0 and len(path_all[i]) > time_step-1 and path_all[agent_id][time_step] == path_all[i][time_step-1]:
-                    conflict_id = i
-                    cocurrent_move = True
-                    break
+
             if debug:
                 if conflict_id == -1:
                     eprint("Agent {} failed to move to {} at timestep {}. Check visualizer for what happened.".format(agent_id, path_all[agent_id][time_step], time_step))
-                if cocurrent_move:
-                    eprint("Agent {} failed to move to {} at timestep {} as lockstep movement with agent {} not allowed.".format(agent_id, path_all[agent_id][time_step], time_step,conflict_id))
                 else:
                     eprint("Agent {} have conflict when trying to reach {} at timestep {} with Agent {}".format(agent_id, path_all[agent_id][time_step], time_step,conflict_id))
             conflict = True
     return conflict
 
-def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question_type: int):
+def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question_type: int, ddl=None):
     statistics = []
     print(output_header)
     for test_case in test_cases:
@@ -129,14 +128,14 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
 
         num_of_agents = local_env.get_num_agents()
         statistic_dict = {"test_case": test_name,"No. of agents":local_env.get_num_agents(), "time_step": 0, "num_done": 0, "sum_of_cost": 0, "done_percentage": 0,
-                          "all_done": False}
+                          "all_done": False, "cost":[0] * num_of_agents,"penalty":[0]*num_of_agents,"sic_final":[0]*num_of_agents,"p":0}
 
         # Initiate the renderer
         if visualizer:
             env_renderer = RenderTool(local_env,
                                       show_debug=debug,
-                                      screen_height=800,  # Adjust these parameters to fit your resolution
-                                      screen_width=800)  # Adjust these parameters to fit your resolution
+                                      screen_height=900,  # Adjust these parameters to fit your resolution
+                                      screen_width=900)  # Adjust these parameters to fit your resolution
             env_renderer.render_env(show=True, show_observations=False, show_predictions=False)
 
         path_all = []
@@ -169,6 +168,7 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
         time_step = 0
         out_of_path = False
         inconsistent = False
+        done = None
         while time_step < local_env._max_episode_steps:
             if out_of_path:
                 if debug:
@@ -180,11 +180,8 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
 
             if inconsistent:
                 if debug:
-                    eprint("Can't finish test {} as path is inconsistent.".format(
-                        test_case))
-                    eprint("Press Enter to move to next test:")
+                    eprint("Press Enter to continue:")
                     input()
-                break
 
             action_dict, out_of_path, inconsistent = path_controller(time_step, local_env, path_all, debug)
             statistic_dict["time_step"] = time_step
@@ -203,20 +200,17 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
                 if done[agent_id]:
                     num_done += 1
                 else:
-                    new_cost += 1
+                    statistic_dict["cost"][agent_id]+= 1
 
             statistic_dict["num_done"] = num_done
             statistic_dict["done_percentage"] = round(num_done / len(local_env.agents), 2)
-            statistic_dict["sum_of_cost"] += new_cost
 
             if time_step!=0:
                 conflict = check_conflict(time_step, path_all, local_env, debug)
                 if conflict:
                     if debug:
-                        eprint("Can't finish test {}. ".format(test_case))
-                        eprint("Press Enter to move to next test:")
+                        eprint("Press Enter to continue:")
                         input()
-                    break
             if debug:
                 time.sleep(0.2)
 
@@ -229,8 +223,20 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
                 break
             time_step += 1
 
+        for agent_id in range(0, len(local_env.agents)):
+            if done[agent_id]:
+                statistic_dict["sum_of_cost"] += statistic_dict["cost"][agent_id]
+            else:
+                statistic_dict["sum_of_cost"] += local_env._max_episode_steps
+        statistic_dict["sic_final"] = statistic_dict["sum_of_cost"] + sum(statistic_dict["penalty"])
+        if question_type == 1:
+            statistic_dict["p"] = None
+        else:
+            statistic_dict["p"] = int(statistic_dict["sic_final"]/num_of_agents)
         print(output_template.format(test_name, str(statistic_dict["No. of agents"]), str(statistic_dict["num_done"]),
-                                     str(statistic_dict["sum_of_cost"]), str(statistic_dict["time_step"])))
+                                     str(statistic_dict["sum_of_cost"]), str(statistic_dict["time_step"]),
+                                     str(sum(statistic_dict["penalty"])),str(statistic_dict["sic_final"]),str(statistic_dict["p"])
+                                     ))
         statistics.append(statistic_dict)
 
 
@@ -240,15 +246,24 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
     num_done = 0
     sum_make=0
     sum_agents = 0
+    sum_penalty = 0
+    sum_sic_final = 0
+    sum_p = None
     for data in statistics:
         sum_done_percent += data["done_percentage"]
         sum_cost += data["sum_of_cost"]
         num_done += data["num_done"]
         sum_make += data["time_step"]
         sum_agents += data["No. of agents"]
+        sum_penalty += sum(data["penalty"])
+        sum_sic_final += data["sic_final"]
         count+=1
+    if question_type == 1:
+        sum_p = int(sum_cost/sum_agents)
     print(output_template.format("Summary", str(sum_agents)+" (sum)", str(num_done)+" (sum)",
-                                 str(sum_cost)+" (sum)", str(sum_make)+" (sum)"))
+                                 str(sum_cost)+" (sum)", str(sum_make)+" (sum)", 
+                                 str(sum_penalty)+" (sum)",str(sum_sic_final)+" (sum)",str(sum_p)+" (final)"
+                                 ))
     input("Press enter to exit:")
 
 def remote_evaluator(get_path):

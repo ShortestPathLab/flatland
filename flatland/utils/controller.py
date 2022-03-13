@@ -15,8 +15,8 @@ import numpy as np
 def eprint(*args, **kwargs):
     print("[ERROR] ",*args, file=sys.stderr, **kwargs)
 
-output_template = "{0:12} | {1:12} | {2:12} | {3:12} | {4:12} | {5:12} | {6:12} | {7:12}"
-output_header = output_template.format("Test case", "No. of agents","Agents done", "Sum of cost", "Makespan","Penalty","Final SIC","P Score")
+output_template = "{0:12} | {1:12} | {2:12} | {3:12} | {4:12} | {5:12} | {6:12} | {7:12} | {8:12}"
+output_header = output_template.format("Test case", "No. of agents","Agents done", "Deadlines met", "Sum of cost", "Makespan","Penalty","Final SIC","P Score")
 
 
 class Train_Actions(IntEnum):
@@ -109,10 +109,10 @@ def check_conflict(time_step,path_all,local_env: RailEnv, debug=False):
             conflict = True
     return conflict
 
-def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question_type: int, ddl=None):
+def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, question_type: int, ddl: list=None, ddl_scale: int=2):
     statistics = []
     print(output_header)
-    for test_case in test_cases:
+    for i, test_case in enumerate(test_cases):
         test_name = os.path.basename(test_case)
         if debug:
             print("Loading evaluation: {}".format(test_case))
@@ -120,14 +120,21 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
                             height=1,
                             rail_generator=rail_from_file(test_case),
                             schedule_generator=schedule_from_file(test_case),
+                            # schedule_generator=schedule_from_file(test_case, ddl_test_case),
                             remove_agents_at_target=True
                             # Removes agents at the end of their journey to make space for others
                             )
 
         local_env.reset()
+        if ddl:
+            deadlines = local_env.read_readlines(ddl[i])
+        else:
+            deadlines = local_env.generate_deadlines(ddl_scale)
+            local_env.save_deadlines(test_case[:-4], deadlines)
+        local_env.set_deadlines(deadlines)
 
         num_of_agents = local_env.get_num_agents()
-        statistic_dict = {"test_case": test_name,"No. of agents":local_env.get_num_agents(), "time_step": 0, "num_done": 0, "sum_of_cost": 0, "done_percentage": 0,
+        statistic_dict = {"test_case": test_name,"No. of agents":local_env.get_num_agents(), "time_step": 0, "num_done": 0, "deadlines_met": 0, "sum_of_cost": 0, "done_percentage": 0,
                           "all_done": False, "cost":[0] * num_of_agents,"penalty":[0]*num_of_agents,"sic_final":[0]*num_of_agents,"p":0}
 
         # Initiate the renderer
@@ -196,14 +203,18 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
 
             num_done = 0
             new_cost = 0
+            num_deadlines_met = 0
             for agent_id in range(0, len(local_env.agents)):
                 if done[agent_id]:
                     num_done += 1
+                    if statistic_dict["cost"][agent_id] <= local_env.agents[agent_id].deadline:
+                        num_deadlines_met += 1
                 else:
                     statistic_dict["cost"][agent_id]+= 1
 
             statistic_dict["num_done"] = num_done
             statistic_dict["done_percentage"] = round(num_done / len(local_env.agents), 2)
+            statistic_dict["deadlines_met"] = num_deadlines_met
 
             if time_step!=0:
                 conflict = check_conflict(time_step, path_all, local_env, debug)
@@ -234,6 +245,7 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
         else:
             statistic_dict["p"] = int(statistic_dict["sic_final"]/num_of_agents)
         print(output_template.format(test_name, str(statistic_dict["No. of agents"]), str(statistic_dict["num_done"]),
+                                     str(statistic_dict["deadlines_met"]),
                                      str(statistic_dict["sum_of_cost"]), str(statistic_dict["time_step"]),
                                      str(sum(statistic_dict["penalty"])),str(statistic_dict["sic_final"]),str(statistic_dict["p"])
                                      ))

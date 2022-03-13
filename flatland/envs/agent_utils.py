@@ -1,6 +1,7 @@
 from enum import IntEnum
 from itertools import starmap
 from typing import Tuple, Optional, NamedTuple
+import pickle
 
 from attr import attrs, attrib, Factory
 
@@ -59,6 +60,8 @@ class EnvAgent:
     # used in rendering
     old_direction = attrib(default=None)
     old_position = attrib(default=None)
+    
+    deadline = attrib(default=None, type=int)
 
     def reset(self):
         """
@@ -71,6 +74,7 @@ class EnvAgent:
         self.old_position = None
         self.old_direction = None
         self.moving = False
+        self.deadline = None
 
         # Reset agent values for speed
         self.speed_data['position_fraction'] = 0.

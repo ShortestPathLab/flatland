@@ -5,6 +5,7 @@ import random
 # TODO:  _ this is a global method --> utils or remove later
 from enum import IntEnum
 from typing import List, NamedTuple, Optional, Dict, Tuple
+import pickle
 
 import numpy as np
 
@@ -1084,6 +1085,38 @@ class RailEnv(Environment):
         List[int]
         """
         return Grid4Transitions.get_entry_directions(self.rail.get_full_transitions(row, col))
+
+    def read_deadlines(self, filename):
+        try:
+            "reading deadline..."
+            with open(filename, 'rb') as handle:
+                list_of_deadlines = pickle.load(handle)
+            return list_of_deadlines
+        except OSError:
+            print("Could not open/read deadlines file...")
+            exit(1)
+    
+    def save_deadlines(self, filename: str, deadlines: List[int]):
+        with open(filename + ".ddl", 'wb') as handle:
+            pickle.dump(deadlines, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        print("successfully saved deadlines...")
+
+    def generate_deadlines(self, deadline_scale):
+        # TODO: seed generation
+        deadlines = []
+        d_map = self.distance_map.get()
+        for i, agent in enumerate(self.agents):
+            x, y = agent.initial_position
+            low_dist = int(d_map[i, x, y, agent.direction])
+            upp_dist = int(low_dist * deadline_scale)
+            deadline = random.randint(low_dist, upp_dist)
+            deadlines.append(deadline)
+        return deadlines
+    
+    def set_deadlines(self, deadlines: List[int]):
+        assert len(deadlines) == len(self.agents), "Number of deadlines does not match number of agents!"
+        for i in range(len(self.agents)):
+            self.agents[i].deadline = deadlines[i]
 
     def _exp_distirbution_synced(self, rate: float) -> float:
         """

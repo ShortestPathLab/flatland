@@ -12,11 +12,20 @@ from enum import IntEnum
 import time, os, sys
 import numpy as np
 
+class HiddenPrints:
+    def __enter__(self):
+        self._original_stdout = sys.stdout
+        sys.stdout = open(os.devnull, 'w')
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        sys.stdout.close()
+        sys.stdout = self._original_stdout
+
 def eprint(*args, **kwargs):
     print("[ERROR] ",*args, file=sys.stderr, **kwargs)
 
-output_template = "{0:12} | {1:12} | {2:12} | {3:12} | {4:12} | {5:12} | {6:12} | {7:12}"
-output_header = output_template.format("Test case", "No. of agents","Agents done", "Sum of cost", "Makespan","Penalty","Final SIC","P Score")
+output_template = "{0:18} | {1:12} | {2:12} | {3:10} | {4:8} | {5:8} | {6:8} | {7:10} | {8:10}"
+output_header = output_template.format("Test case", "Total agents","Agents done","Plan Time", "SIC", "Makespan","Penalty","Final SIC","P Score")
 
 
 class Train_Actions(IntEnum):
@@ -111,6 +120,8 @@ def check_conflict(time_step,path_all,local_env: RailEnv, debug=False):
 
 def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question_type: int, ddl=None):
     statistics = []
+    runtimes = []
+
     print(output_header)
     for test_case in test_cases:
         test_name = os.path.basename(test_case)
@@ -137,8 +148,8 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
                                       screen_height=900,  # Adjust these parameters to fit your resolution
                                       screen_width=900)  # Adjust these parameters to fit your resolution
             env_renderer.render_env(show=True, show_observations=False, show_predictions=False)
-
         path_all = []
+        start_t = time.time()
         if question_type == 1:
             agent_id = 0
             agent = local_env.agents[agent_id]
@@ -164,6 +175,7 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
             eprint("No such question type option.")
             exit(1)
 
+        runtimes.append(round(time.time()-start_t,2))
 
         time_step = 0
         out_of_path = False
@@ -233,7 +245,7 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
             statistic_dict["p"] = None
         else:
             statistic_dict["p"] = int(statistic_dict["sic_final"]/num_of_agents)
-        print(output_template.format(test_name, str(statistic_dict["No. of agents"]), str(statistic_dict["num_done"]),
+        print(output_template.format(test_name, str(statistic_dict["No. of agents"]), str(statistic_dict["num_done"]), str(runtimes[-1]),
                                      str(statistic_dict["sum_of_cost"]), str(statistic_dict["time_step"]),
                                      str(sum(statistic_dict["penalty"])),str(statistic_dict["sic_final"]),str(statistic_dict["p"])
                                      ))
@@ -249,6 +261,7 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
     sum_penalty = 0
     sum_sic_final = 0
     sum_p = None
+    sum_runtime = sum(runtimes)
     for data in statistics:
         sum_done_percent += data["done_percentage"]
         sum_cost += data["sum_of_cost"]
@@ -260,7 +273,7 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
         count+=1
     if question_type == 1:
         sum_p = int(sum_cost/sum_agents)
-    print(output_template.format("Summary", str(sum_agents)+" (sum)", str(num_done)+" (sum)",
+    print(output_template.format("Summary", str(sum_agents)+" (sum)", str(num_done)+" (sum)",str(sum_runtime)+"(sum)",
                                  str(sum_cost)+" (sum)", str(sum_make)+" (sum)", 
                                  str(sum_penalty)+" (sum)",str(sum_sic_final)+" (sum)",str(sum_p)+" (final)"
                                  ))

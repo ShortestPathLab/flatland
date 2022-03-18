@@ -119,7 +119,7 @@ def check_conflict(time_step,path_all,local_env: RailEnv, debug=False):
             conflict = True
     return conflict
 
-def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, question_type: int, ddl: list=None, ddl_scale: int=0.2, baseline_pscore = {}, save_pscore = None):
+def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, question_type: int, ddl: list=None, ddl_scale: int=0.2, baseline_pscore = {}, save_pscore = None,  penalty_scale=4):
     statistics = []
     runtimes = []
     pscores = {}
@@ -226,7 +226,7 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, questio
                         if statistic_dict["cost"][agent_id] <= local_env.agents[agent_id].deadline:
                             num_deadlines_met += 1
                         else:
-                            statistic_dict["penalty"][agent_id] = 2*(statistic_dict["cost"][agent_id] - local_env.agents[agent_id].deadline)
+                            statistic_dict["penalty"][agent_id] = penalty_scale*(statistic_dict["cost"][agent_id] - local_env.agents[agent_id].deadline)
                     else:
                         num_deadlines_met += 1
                 else:
@@ -312,7 +312,7 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, questio
                                  ))
     input("Press enter to exit:")
 
-def remote_evaluator(get_path):
+def remote_evaluator(get_path, args):
     remote_client = FlatlandRemoteClient()
 
     #####################################################################

@@ -9,7 +9,7 @@ from flatland.envs.schedule_generators import complex_schedule_generator, schedu
 from flatland.envs.rail_env import RailEnv
 from flatland.utils.rendertools import RenderTool, AgentRenderVariant
 from enum import IntEnum
-import time, os, sys
+import time, os, sys, json
 import numpy as np
 
 class HiddenPrints:
@@ -24,8 +24,9 @@ class HiddenPrints:
 def eprint(*args, **kwargs):
     print("[ERROR] ",*args, file=sys.stderr, **kwargs)
 
-output_template = "{0:18} | {1:12} | {2:12} | {3:10} | {4:8} | {5:8} | {6:8} | {7:10} | {8:10}"
-output_header = output_template.format("Test case", "Total agents","Agents done","Plan Time", "SIC", "Makespan","Penalty","Final SIC","P Score")
+
+output_template = "{0:18} | {1:12} | {2:12} | {3:12} | {4:10} | {5:12} | {6:12} | {7:12} | {8:12} | {9:12}"
+output_header = output_template.format("Test case", "Total agents","Agents done", "DDLs met","Plan Time", "SIC", "Makespan","Penalty","Final SIC","P Score")
 
 
 class Train_Actions(IntEnum):
@@ -118,12 +119,13 @@ def check_conflict(time_step,path_all,local_env: RailEnv, debug=False):
             conflict = True
     return conflict
 
-def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question_type: int, ddl=None):
+def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, question_type: int, ddl: list=None, ddl_scale: int=0.2, baseline_pscore = {}, save_pscore = None):
     statistics = []
     runtimes = []
+    pscores = {}
 
     print(output_header)
-    for test_case in test_cases:
+    for i, test_case in enumerate(test_cases):
         test_name = os.path.basename(test_case)
         if debug:
             print("Loading evaluation: {}".format(test_case))
@@ -131,6 +133,7 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
                             height=1,
                             rail_generator=rail_from_file(test_case),
                             schedule_generator=schedule_from_file(test_case),
+                            # schedule_generator=schedule_from_file(test_case, ddl_test_case),
                             remove_agents_at_target=True
                             # Removes agents at the end of their journey to make space for others
                             )
@@ -138,8 +141,8 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
         local_env.reset()
 
         num_of_agents = local_env.get_num_agents()
-        statistic_dict = {"test_case": test_name,"No. of agents":local_env.get_num_agents(), "time_step": 0, "num_done": 0, "sum_of_cost": 0, "done_percentage": 0,
-                          "all_done": False, "cost":[0] * num_of_agents,"penalty":[0]*num_of_agents,"sic_final":[0]*num_of_agents,"p":0}
+        statistic_dict = {"test_case": test_name,"No. of agents":local_env.get_num_agents(), "time_step": 0, "num_done": 0, "deadlines_met": 0, "sum_of_cost": 0, "done_percentage": 0,
+                          "all_done": False, "cost":[0] * num_of_agents,"penalty":[0]*num_of_agents,"sic_final":[0]*num_of_agents,"p":0,"f":0}
 
         # Initiate the renderer
         if visualizer:
@@ -166,6 +169,13 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
                 if debug:
                     print("Agent: {}, Path: {}".format(agent_id, path))
         elif question_type == 3:
+            if ddl:
+                deadlines = local_env.read_deadlines(ddl[i])
+            else:
+                deadlines = local_env.generate_deadlines(ddl_scale, group_size= len(local_env.agents)//5)
+                local_env.save_deadlines(test_case[:-4], deadlines)
+            local_env.set_deadlines(deadlines)
+
             path_all = get_path(local_env)
             if debug:
                 for agent_id in range(0, len(local_env.agents)):
@@ -208,14 +218,23 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
 
             num_done = 0
             new_cost = 0
+            num_deadlines_met = 0
             for agent_id in range(0, len(local_env.agents)):
                 if done[agent_id]:
                     num_done += 1
+                    if local_env.agents[agent_id].deadline:
+                        if statistic_dict["cost"][agent_id] <= local_env.agents[agent_id].deadline:
+                            num_deadlines_met += 1
+                        else:
+                            statistic_dict["penalty"][agent_id] = 2*(statistic_dict["cost"][agent_id] - local_env.agents[agent_id].deadline)
+                    else:
+                        num_deadlines_met += 1
                 else:
                     statistic_dict["cost"][agent_id]+= 1
 
             statistic_dict["num_done"] = num_done
             statistic_dict["done_percentage"] = round(num_done / len(local_env.agents), 2)
+            statistic_dict["deadlines_met"] = num_deadlines_met
 
             if time_step!=0:
                 conflict = check_conflict(time_step, path_all, local_env, debug)
@@ -245,9 +264,13 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
             statistic_dict["p"] = None
         else:
             statistic_dict["p"] = int(statistic_dict["sic_final"]/num_of_agents)
-        print(output_template.format(test_name, str(statistic_dict["No. of agents"]), str(statistic_dict["num_done"]), str(runtimes[-1]),
+            if baseline_pscore:
+                statistic_dict["f"] =min(round(baseline_pscore[test_case]/statistic_dict["p"],2),1.0)
+        pscores[test_case] = statistic_dict["p"]
+        print(output_template.format(test_name, str(statistic_dict["No. of agents"]), str(statistic_dict["num_done"]),
+                                     str(statistic_dict["deadlines_met"]), str(runtimes[-1]),
                                      str(statistic_dict["sum_of_cost"]), str(statistic_dict["time_step"]),
-                                     str(sum(statistic_dict["penalty"])),str(statistic_dict["sic_final"]),str(statistic_dict["p"])
+                                     str(sum(statistic_dict["penalty"])),str(statistic_dict["sic_final"]),str(statistic_dict["p"])+("({})".format(statistic_dict["f"]) if baseline_pscore else "")
                                      ))
         statistics.append(statistic_dict)
 
@@ -261,7 +284,9 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
     sum_penalty = 0
     sum_sic_final = 0
     sum_p = None
-    sum_runtime = sum(runtimes)
+    sum_f = 0
+    sum_runtime = round(sum(runtimes),2)
+    sum_ddl_met = 0
     for data in statistics:
         sum_done_percent += data["done_percentage"]
         sum_cost += data["sum_of_cost"]
@@ -270,12 +295,20 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool,question
         sum_agents += data["No. of agents"]
         sum_penalty += sum(data["penalty"])
         sum_sic_final += data["sic_final"]
+        sum_ddl_met += data["deadlines_met"]
+        sum_f += data["f"]
         count+=1
     if question_type == 1:
         sum_p = int(sum_cost/sum_agents)
-    print(output_template.format("Summary", str(sum_agents)+" (sum)", str(num_done)+" (sum)",str(sum_runtime)+"(sum)",
+        pscores["q1"] = sum_p
+        if baseline_pscore:
+            sum_f = max(round(baseline_pscore["q1"]/sum_p,2),1.0)
+    if save_pscore:
+        with open(save_pscore,"w+") as f:
+            f.write(json.dumps(pscores))
+    print(output_template.format("Summary", str(sum_agents)+" (sum)", str(num_done)+" (sum)", str(sum_ddl_met)+"(sum)",str(sum_runtime)+"(sum)",
                                  str(sum_cost)+" (sum)", str(sum_make)+" (sum)", 
-                                 str(sum_penalty)+" (sum)",str(sum_sic_final)+" (sum)",str(sum_p)+" (final)"
+                                 str(sum_penalty)+" (sum)",str(sum_sic_final)+" (sum)",str(sum_p)+" (final)"+(str(sum_f) if baseline_pscore else "")
                                  ))
     input("Press enter to exit:")
 

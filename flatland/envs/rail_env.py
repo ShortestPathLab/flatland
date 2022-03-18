@@ -5,6 +5,7 @@ import random
 # TODO:  _ this is a global method --> utils or remove later
 from enum import IntEnum
 from typing import List, NamedTuple, Optional, Dict, Tuple
+import pickle
 
 import numpy as np
 
@@ -1084,6 +1085,42 @@ class RailEnv(Environment):
         List[int]
         """
         return Grid4Transitions.get_entry_directions(self.rail.get_full_transitions(row, col))
+
+    def read_deadlines(self, filename):
+        try:
+            "reading deadline..."
+            with open(filename, 'rb') as handle:
+                list_of_deadlines = pickle.load(handle)
+            return list_of_deadlines
+        except OSError:
+            print("Could not open/read deadlines file...")
+            exit(1)
+    
+    def save_deadlines(self, filename: str, deadlines: List[int]):
+        with open(filename + ".ddl", 'wb') as handle:
+            pickle.dump(deadlines, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        print("successfully saved deadlines...")
+
+    def generate_deadlines(self, deadline_scale, group_size = 10):
+        # TODO: seed generation
+        num_agents = len(self.agents)
+        deadlines = [None] * num_agents
+        d_map = self.distance_map.get()
+        shuffled = self.agents[:]
+        random.shuffle(shuffled)
+        for i, agent in enumerate(shuffled):
+            x, y = agent.initial_position
+            dist = int(d_map[agent.handle, x, y, agent.direction])
+            low_dist = int(dist * (1+deadline_scale*(i//group_size)))
+            upp_dist = int(dist * (1+deadline_scale*(i//group_size+1)))
+            deadline = random.randint(low_dist, upp_dist)
+            deadlines[agent.handle] = deadline
+        return deadlines
+    
+    def set_deadlines(self, deadlines: List[int]):
+        assert len(deadlines) == len(self.agents), "Number of deadlines does not match number of agents!"
+        for i in range(len(self.agents)):
+            self.agents[i].deadline = deadlines[i]
 
     def _exp_distirbution_synced(self, rate: float) -> float:
         """

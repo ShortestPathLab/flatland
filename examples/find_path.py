@@ -21,9 +21,9 @@ debug = False
 #########################
 # You should not modify any codes below. You can read it know how we ran flatland environment.
 ########################
-
-print("Train 1: Start  (6, 8)  Goal  (3, 3)")
-print("Train 2: Start  (6, 0)  Goal  (0, 6)")
+print("A locaiton (x,y) indicate a cell on x row and y column")
+print("Train 1: Start  (0, 1)  Goal  (6, 7)")
+print("Train 2: Start  (1, 5)  Goal  (6, 1)")
 
 def get_path(local_env):
     return [train_1, train_2]
@@ -33,9 +33,10 @@ import glob, os
 #import necessary modules that this python scripts need.
 try:
     from flatland.envs.rail_env import RailEnv
-    from controller import get_action, Train_Actions, Directions, check_conflict, path_controller, evaluator
-except:
-    print("Cannot load flatland modules! Make sure you activated flatland virtual environment with 'conda activate flatland-rl'")
+    from flatland.utils.controller import get_action, Train_Actions, Directions, check_conflict, path_controller, evaluator
+except Exception as e:
+    print("Cannot load flatland modules! Make sure your flatland-rl is properly installed.")
+    print(e)
     exit(1)
 
 script_path = os.path.dirname(os.path.abspath(__file__))

@@ -2,11 +2,11 @@
 
 from typing import Callable, NamedTuple, Optional, Tuple
 
-import msgpack
 import numpy as np
 from numpy.random.mtrand import RandomState
 
 from flatland.envs.agent_utils import EnvAgent, RailAgentStatus
+from flatland.envs import persistence
 
 Malfunction = NamedTuple('Malfunction', [('num_broken_steps', int)])
 MalfunctionParameters = NamedTuple('MalfunctionParameters',
@@ -25,10 +25,10 @@ def _malfunction_prob(rate: float) -> float:
     if rate <= 0:
         return 0.
     else:
-        return 1 - np.exp(- (1 / rate))
+        return 1 - np.exp(-rate)
 
 
-def malfunction_from_file(filename: str) -> Tuple[MalfunctionGenerator, MalfunctionProcessData]:
+def malfunction_from_file(filename: str, load_from_package=None) -> Tuple[MalfunctionGenerator, MalfunctionProcessData]:
     """
     Utility to load pickle file
 
@@ -40,18 +40,26 @@ def malfunction_from_file(filename: str) -> Tuple[MalfunctionGenerator, Malfunct
     -------
     generator, Tuple[float, int, int] with mean_malfunction_rate, min_number_of_steps_broken, max_number_of_steps_broken
     """
-    with open(filename, "rb") as file_in:
-        load_data = file_in.read()
-    data = msgpack.unpackb(load_data, use_list=False, encoding='utf-8')
+    # with open(filename, "rb") as file_in:
+    #     load_data = file_in.read()
+
+    # if filename.endswith("mpk"):
+    #     data = msgpack.unpackb(load_data, use_list=False, encoding='utf-8')
+    # elif filename.endswith("pkl"):
+    #     data = pickle.loads(load_data)
+    env_dict = persistence.RailEnvPersister.load_env_dict(filename, load_from_package=load_from_package)
     # TODO: make this better by using namedtuple in the pickle file. See issue 282
-    data['malfunction'] = MalfunctionProcessData._make(data['malfunction'])
-    if "malfunction" in data:
+    if "malfunction" in env_dict:
+        env_dict['malfunction'] = oMPD = MalfunctionProcessData._make(env_dict['malfunction'])
+    else:
+        oMPD = None
+    if oMPD is not None:
         # Mean malfunction in number of time steps
-        mean_malfunction_rate = data["malfunction"].malfunction_rate
+        mean_malfunction_rate = oMPD.malfunction_rate
 
         # Uniform distribution parameters for malfunction duration
-        min_number_of_steps_broken = data["malfunction"].min_duration
-        max_number_of_steps_broken = data["malfunction"].max_duration
+        min_number_of_steps_broken = oMPD.min_duration
+        max_number_of_steps_broken = oMPD.max_duration
     else:
         # Mean malfunction in number of time steps
         mean_malfunction_rate = 0.
@@ -95,7 +103,7 @@ def malfunction_from_params(parameters: MalfunctionParameters) -> Tuple[Malfunct
     ----------
 
     parameters : contains all the parameters of the malfunction
-        malfunction_rate : float how many time steps it takes for a sinlge agent befor it breaks
+        malfunction_rate : float rate per timestep at which each agent malfunctions
         min_duration : int minimal duration of a failure
         max_number_of_steps_broken : int maximal duration of a failure
 
@@ -135,6 +143,44 @@ def malfunction_from_params(parameters: MalfunctionParameters) -> Tuple[Malfunct
                                              max_number_of_steps_broken)
 
 
+class ParamMalfunctionGen(object):
+    def __init__(self, parameters: MalfunctionParameters):
+        self.mean_malfunction_rate = parameters.malfunction_rate
+        self.min_number_of_steps_broken = parameters.min_duration
+        self.max_number_of_steps_broken = parameters.max_duration
+
+    def generate(self, agent: EnvAgent = None, np_random: RandomState = None, reset=False) -> Optional[Malfunction]:
+      
+        # Dummy reset function as we don't implement specific seeding here
+        if reset:
+            return Malfunction(0)
+
+        if agent.malfunction_data['malfunction'] < 1:
+            if np_random.rand() < _malfunction_prob(self.mean_malfunction_rate):
+                num_broken_steps = np_random.randint(self.min_number_of_steps_broken,
+                                                     self.max_number_of_steps_broken + 1) + 1
+                return Malfunction(num_broken_steps)
+        return Malfunction(0)
+
+    def get_process_data(self):
+        return MalfunctionProcessData(
+            self.mean_malfunction_rate, 
+            self.min_number_of_steps_broken,
+            self.max_number_of_steps_broken)
+
+
+class NoMalfunctionGen(ParamMalfunctionGen):
+    def __init__(self):
+        self.mean_malfunction_rate = 0.
+        self.min_number_of_steps_broken = 0
+        self.max_number_of_steps_broken = 0
+
+    def generate(self, agent: EnvAgent = None, np_random: RandomState = None, reset=False) -> Optional[Malfunction]:
+        return Malfunction(0)
+
+    
+
+
 def no_malfunction_generator() -> Tuple[MalfunctionGenerator, MalfunctionProcessData]:
     """
     Malfunction generator which generates no malfunctions
@@ -159,6 +205,7 @@ def no_malfunction_generator() -> Tuple[MalfunctionGenerator, MalfunctionProcess
 
     return generator, MalfunctionProcessData(mean_malfunction_rate, min_number_of_steps_broken,
                                              max_number_of_steps_broken)
+
 
 
 def single_malfunction_generator(earlierst_malfunction: int, malfunction_duration: int) -> Tuple[

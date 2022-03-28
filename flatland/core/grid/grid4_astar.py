@@ -26,8 +26,7 @@ class AStarNode:
         ----------
         other : AStarNode
         """
-        # return False
-        return self.pos == other.pos 
+        return self.pos == other.pos
 
     def __hash__(self):
         return hash(self.pos)
@@ -91,12 +90,12 @@ def a_star(grid_map: GridTransitionMap, start: IntVector2D, end: IntVector2D,
 
 
         for item in open_nodes:
-            
+
 
             if item.f <3 * start_f:
                 # if item.h - start_h >= 0 and current_node.h - start_h >= 0 and item.h < current_node.h:
                 #     current_node = item
-                # elif item.h - start_h < 0 and current_node.h - start_h >= 0: 
+                # elif item.h - start_h < 0 and current_node.h - start_h >= 0:
                 #     current_node = item
                 # el
                 if item.merged == 0 and current_node.merged==0 and item.g < current_node.g:
@@ -117,35 +116,6 @@ def a_star(grid_map: GridTransitionMap, start: IntVector2D, end: IntVector2D,
                     current_node = item
                 elif item.f == current_node.f and item.merged == current_node.merged and item.h == current_node.h and random.sample([True,False],1):
                     current_node = item
-
-
-            
-
-            # if item.f > 1.3 * start_f and current_node.f  > 1.3 * start_f:
-            #     if item.f < current_node.f:
-            #         current_node = item
-            #     elif  item.f == current_node.f and item.merged > current_node.merged:
-            #         current_node = item
-            #     elif  item.f == current_node.f  and random.sample([True,False],1):
-            #         current_node = item
-            # if item.f <= 1.3 * start_f and current_node.f  > 1.3 * start_f:
-            #     current_node = item
-            # elif item.f <= 1.3 * start_f:
-            #     if item.h - start_h < 0 and item.merged>current_node.merged:
-            #         current_node = item
-            #     elif item.h - start_h < 0 and item.g>current_node.g:
-            #         current_node = item
-            #     elif item.h - start_h < 0 and  item.h > current_node.h :
-            #         current_node = item
-            #     elif item.h - start_h < 0 and random.sample([True,False],1):
-            #         current_node = item
-            #     elif item.h - start_h > 0 and current_node.h - start_h > 0 and item.h < current_node.h:
-            #         current_node = item
-
-                
-            # elif item.g == current_node.g and item.h < current_node.h:
-            #     current_node = item
-             
 
         # pop current off open list, add to closed list
         open_nodes.remove(current_node)

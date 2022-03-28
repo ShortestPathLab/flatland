@@ -15,6 +15,21 @@ from flatland.envs.agent_utils import RailAgentStatus, EnvAgent
 from flatland.utils.ordered_set import OrderedSet
 
 
+
+Node = collections.namedtuple('Node', 'dist_own_target_encountered '
+                                        'dist_other_target_encountered '
+                                        'dist_other_agent_encountered '
+                                        'dist_potential_conflict '
+                                        'dist_unusable_switch '
+                                        'dist_to_next_branch '
+                                        'dist_min_to_target '
+                                        'num_agents_same_direction '
+                                        'num_agents_opposite_direction '
+                                        'num_agents_malfunctioning '
+                                        'speed_min_fractional '
+                                        'num_agents_ready_to_depart '
+                                        'childs')
+
 class TreeObsForRailEnv(ObservationBuilder):
     """
     TreeObsForRailEnv object.
@@ -25,19 +40,7 @@ class TreeObsForRailEnv(ObservationBuilder):
 
     For details about the features in the tree observation see the get() function.
     """
-    Node = collections.namedtuple('Node', 'dist_own_target_encountered '
-                                          'dist_other_target_encountered '
-                                          'dist_other_agent_encountered '
-                                          'dist_potential_conflict '
-                                          'dist_unusable_switch '
-                                          'dist_to_next_branch '
-                                          'dist_min_to_target '
-                                          'num_agents_same_direction '
-                                          'num_agents_opposite_direction '
-                                          'num_agents_malfunctioning '
-                                          'speed_min_fractional '
-                                          'num_agents_ready_to_depart '
-                                          'childs')
+
 
     tree_explored_actions_char = ['L', 'F', 'R', 'B']
 
@@ -205,7 +208,8 @@ class TreeObsForRailEnv(ObservationBuilder):
         # Here information about the agent itself is stored
         distance_map = self.env.distance_map.get()
 
-        root_node_observation = TreeObsForRailEnv.Node(dist_own_target_encountered=0, dist_other_target_encountered=0,
+        # was referring to TreeObsForRailEnv.Node
+        root_node_observation = Node(dist_own_target_encountered=0, dist_other_target_encountered=0,
                                                        dist_other_agent_encountered=0, dist_potential_conflict=0,
                                                        dist_unusable_switch=0, dist_to_next_branch=0,
                                                        dist_min_to_target=distance_map[
@@ -216,6 +220,7 @@ class TreeObsForRailEnv(ObservationBuilder):
                                                        speed_min_fractional=agent.speed_data['speed'],
                                                        num_agents_ready_to_depart=0,
                                                        childs={})
+        #print("root node type:", type(root_node_observation))
 
         visited = OrderedSet()
 
@@ -295,21 +300,16 @@ class TreeObsForRailEnv(ObservationBuilder):
 
                 if self.location_has_agent_direction[position] == direction:
                     # Cummulate the number of agents on branch with same direction
-                    other_agent_same_direction += self.location_has_agent_direction.get((position, direction), 0)
+                    other_agent_same_direction += 1
 
                     # Check fractional speed of agents
                     current_fractional_speed = self.location_has_agent_speed[position]
                     if current_fractional_speed < min_fractional_speed:
                         min_fractional_speed = current_fractional_speed
 
-                    # Other direction agents
-                    # TODO: Test that this behavior is as expected
-                    other_agent_opposite_direction += \
-                        self.location_has_agent[position] - self.location_has_agent_direction.get((position, direction),
-                                                                                                  0)
-
                 else:
                     # If no agent in the same direction was found all agents in that position are other direction
+                    # Attention this counts to many agents as a few might be going off on a switch.
                     other_agent_opposite_direction += self.location_has_agent[position]
 
                 # Check number of possible transitions for agent and total number of transitions in cell (type)
@@ -436,7 +436,8 @@ class TreeObsForRailEnv(ObservationBuilder):
             dist_to_next_branch = tot_dist
             dist_min_to_target = self.env.distance_map.get()[handle, position[0], position[1], direction]
 
-        node = TreeObsForRailEnv.Node(dist_own_target_encountered=own_target_encountered,
+        # TreeObsForRailEnv.Node
+        node = Node(dist_own_target_encountered=own_target_encountered,
                                       dist_other_target_encountered=other_target_encountered,
                                       dist_other_agent_encountered=other_agent_encountered,
                                       dist_potential_conflict=potential_conflict,

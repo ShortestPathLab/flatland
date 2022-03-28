@@ -15,7 +15,6 @@ from flatland.core.grid.grid_utils import Vec2dOperations as Vec2d
 from flatland.core.transition_map import GridTransitionMap, RailEnvTransitions
 
 
-
 def connect_rail_in_grid_map(grid_map: GridTransitionMap, start: IntVector2D, end: IntVector2D,
                              rail_trans: RailEnvTransitions,
                              a_star_distance_function: IntVector2DDistance = Vec2d.get_manhattan_distance,

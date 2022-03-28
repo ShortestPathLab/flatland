@@ -7,6 +7,7 @@ import time
 
 import msgpack
 import msgpack_numpy as m
+import pickle
 import numpy as np
 import redis
 
@@ -16,10 +17,16 @@ from flatland.envs.rail_env import RailEnv
 from flatland.envs.rail_generators import rail_from_file
 from flatland.envs.schedule_generators import schedule_from_file
 from flatland.evaluators import messages
+from flatland.core.env_observation_builder import DummyObservationBuilder
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 m.patch()
+
+
+class TimeoutException(StopAsyncIteration):
+    """ Custom exception for evaluation timeouts. """
+    pass
 
 
 class FlatlandRemoteClient(object):
@@ -44,8 +51,9 @@ class FlatlandRemoteClient(object):
                  remote_db=0,
                  remote_password=None,
                  test_envs_root=None,
-                 verbose=False):
-
+                 verbose=False,
+                 use_pickle=False):
+        self.use_pickle = use_pickle
         self.remote_host = remote_host
         self.remote_port = remote_port
         self.remote_db = remote_db
@@ -66,6 +74,11 @@ class FlatlandRemoteClient(object):
             self.namespace,
             self.service_id
         )
+
+        # for timeout messages sent out-of-band
+        self.error_channel = "{}::{}::errors".format(
+            self.namespace, self.service_id)
+
         if test_envs_root:
             self.test_envs_root = test_envs_root
         else:
@@ -83,20 +96,32 @@ class FlatlandRemoteClient(object):
         self.env_step_times = []
         self.stats = {}
 
-    def update_running_mean_stats(self, key, scalar):
+    def update_running_stats(self, key, scalar):
         """
         Computes the running mean for certain params
         """
         mean_key = "{}_mean".format(key)
         counter_key = "{}_counter".format(key)
+        min_key = "{}_min".format(key)
+        max_key = "{}_max".format(key)
 
         try:
+            # Update Mean
             self.stats[mean_key] = \
                 ((self.stats[mean_key] * self.stats[counter_key]) + scalar) / (self.stats[counter_key] + 1)
+            # Update min
+            if scalar < self.stats[min_key]:
+                self.stats[min_key] = scalar
+            # Update max
+            if scalar > self.stats[max_key]:
+                self.stats[max_key] = scalar
+
             self.stats[counter_key] += 1
         except KeyError:
-            self.stats[mean_key] = 0
-            self.stats[counter_key] = 0
+            self.stats[mean_key] = scalar
+            self.stats[min_key] = scalar
+            self.stats[max_key] = scalar
+            self.stats[counter_key] = 1
 
     def get_redis_connection(self):
         return self.redis_conn
@@ -134,9 +159,28 @@ class FlatlandRemoteClient(object):
         """
         if self.verbose:
             print("Request : ", _request)
+
+        # check for errors (essentially just timeouts, for now.)
+        error_bytes = _redis.rpop(self.error_channel)
+        if error_bytes is not None:
+            if self.use_pickle:
+                error_dict = pickle.loads(error_bytes)
+            else:
+                error_dict = msgpack.unpackb(
+                    error_bytes,
+                    object_hook=m.decode,
+                    strict_map_key=False,  # new for msgpack 1.0?
+                    encoding="utf8"  # remove for msgpack 1.0
+                )
+            print("Error received: ", error_dict)
+            raise TimeoutException(error_dict["type"])
+
         # Push request in command_channels
         # Note: The patched msgpack supports numpy arrays
-        payload = msgpack.packb(_request, default=m.encode, use_bin_type=True)
+        if self.use_pickle:
+            payload = pickle.dumps(_request)
+        else:
+            payload = msgpack.packb(_request, default=m.encode, use_bin_type=True)
         _redis.lpush(self.command_channel, payload)
 
         if blocking:
@@ -144,10 +188,15 @@ class FlatlandRemoteClient(object):
             _response = _redis.blpop(_request['response_channel'])[1]
             if self.verbose:
                 print("Response : ", _response)
-            _response = msgpack.unpackb(
-                _response,
-                object_hook=m.decode,
-                encoding="utf8")
+            if self.use_pickle:
+                _response = pickle.loads(_response)
+            else:
+                _response = msgpack.unpackb(
+                    _response,
+                    object_hook=m.decode,
+                    strict_map_key=False,  # new for msgpack 1.0?
+                    encoding="utf8"  # remove for msgpack 1.0
+                )
             if _response['type'] == messages.FLATLAND_RL.ERROR:
                 raise Exception(str(_response["payload"]))
             else:
@@ -190,7 +239,7 @@ class FlatlandRemoteClient(object):
         random_seed = _response['payload']['random_seed']
         test_env_file_path = _response['payload']['env_file_path']
         time_diff = time.time() - time_start
-        self.update_running_mean_stats("env_creation_wait_time", time_diff)
+        self.update_running_stats("env_creation_wait_time", time_diff)
 
         if not observation:
             # If the observation is False,
@@ -222,6 +271,8 @@ class FlatlandRemoteClient(object):
                            obs_builder_object=obs_builder_object)
 
         time_start = time.time()
+        # Use the local observation
+        # as the remote server uses a dummy observation builder
         local_observation, info = self.env.reset(
             regenerate_rail=True,
             regenerate_schedule=True,
@@ -229,22 +280,29 @@ class FlatlandRemoteClient(object):
             random_seed=random_seed
         )
         time_diff = time.time() - time_start
-        self.update_running_mean_stats("internal_env_reset_time", time_diff)
-        # Use the local observation
-        # as the remote server uses a dummy observation builder
+        self.update_running_stats("internal_env_reset_time", time_diff)
+
+        # We use the last_env_step_time as an approximate measure of the inference time
+        self.last_env_step_time = time.time()
         return local_observation, info
 
     def env_step(self, action, render=False):
         """
             Respond with [observation, reward, done, info]
         """
+        # We use the last_env_step_time as an approximate measure of the inference time
+        approximate_inference_time = time.time() - self.last_env_step_time
+        self.update_running_stats("inference_time(approx)", approximate_inference_time)
+
         _request = {}
         _request['type'] = messages.FLATLAND_RL.ENV_STEP
         _request['payload'] = {}
         _request['payload']['action'] = action
+        _request['payload']['inference_time'] = approximate_inference_time
 
         # Relay the action in a non-blocking way to the server
         # so that it can start doing an env.step on it in ~ parallel
+        # Note - this can throw a Timeout
         self._remote_request(_request, blocking=False)
 
         # Apply the action in the local env
@@ -253,7 +311,10 @@ class FlatlandRemoteClient(object):
             self.env.step(action)
         time_diff = time.time() - time_start
         # Compute a running mean of env step times
-        self.update_running_mean_stats("internal_env_step_time", time_diff)
+        self.update_running_stats("internal_env_step_time", time_diff)
+
+        # We use the last_env_step_time as an approximate measure of the inference time
+        self.last_env_step_time = time.time()
 
         return [local_observation, local_reward, local_done, local_info]
 
@@ -272,7 +333,15 @@ class FlatlandRemoteClient(object):
         print("=" * 100)
         for _key in self.stats:
             if _key.endswith("_mean"):
-                print("\t - {}\t:{}".format(_key, self.stats[_key]))
+                metric_name = _key.replace("_mean", "")
+                mean_key = "{}_mean".format(metric_name)
+                min_key = "{}_min".format(metric_name)
+                max_key = "{}_max".format(metric_name)
+                print("\t - {}\t => min: {} || mean: {} || max: {}".format(
+                    metric_name,
+                    self.stats[min_key],
+                    self.stats[mean_key],
+                    self.stats[max_key]))
         print("=" * 100)
         if os.getenv("AICROWD_BLOCKING_SUBMIT"):
             """
@@ -318,13 +387,18 @@ if __name__ == "__main__":
         while True:
             action = my_controller(obs, remote_client.env)
             time_start = time.time()
-            observation, all_rewards, done, info = remote_client.env_step(action)
-            time_diff = time.time() - time_start
-            print("Step Time : ", time_diff)
-            if done['__all__']:
-                print("Current Episode : ", episode)
-                print("Episode Done")
-                print("Reward : ", sum(list(all_rewards.values())))
+
+            try:
+                observation, all_rewards, done, info = remote_client.env_step(action)
+                time_diff = time.time() - time_start
+                print("Step Time : ", time_diff)
+                if done['__all__']:
+                    print("Current Episode : ", episode)
+                    print("Episode Done")
+                    print("Reward : ", sum(list(all_rewards.values())))
+                    break
+            except TimeoutException as err:
+                print("Timeout: ", err)
                 break
 
     print("Evaluation Complete...")

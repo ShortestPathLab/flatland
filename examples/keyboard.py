@@ -3,7 +3,9 @@ from flatland.envs.rail_generators import complex_rail_generator
 from flatland.envs.schedule_generators import complex_schedule_generator
 from flatland.envs.rail_env import RailEnv
 from flatland.utils.rendertools import RenderTool
+from pyglet.window import key
 import time
+
 
 #Initialize Flatland Railway environment
 railWaySettings = complex_rail_generator(
@@ -20,7 +22,7 @@ env = RailEnv(  width=15, #Width/columns of grids
 env.reset() # initialize railway env
  
 # Initiate the graphic module
-render = RenderTool(env, gl="PILSVG",
+render = RenderTool(env,
                          show_debug=False,
                          screen_height=500,  # Window resolution height
                          screen_width=500)  # Window resolution width
@@ -29,17 +31,17 @@ window=render.gl.window  #We will use this window object to capture user input
 
 #Capture key press event from window and set pressed key to pressedKey variable
 pressedKey = None #store pressed key here
-keyMap={"Left":1,#Turn left
-       "Up":2,#Go forward
-       "Right":3,#Turn right
-       "Down":4#Stop
+keyMap={key.LEFT:1,#Turn left
+       key.UP:2,#Go forward
+       key.RIGHT:3,#Turn right
+       key.DOWN:4#Stop
        }
-def _keypress(event):
-    global pressedKey
-    if event.keysym in keyMap.keys():
-        pressedKey = keyMap[event.keysym] #retrieve corresponding actions from keyMap
-window.bind("<KeyPress>", _keypress) # bind keypress event to our function
 
+@window.event
+def on_key_press(symbol, modifiers):
+    global pressedKey
+    if symbol in keyMap.keys():
+        pressedKey = keyMap[symbol]
 
 #Define Controller
 def my_controller(number_agents,first_makespan=False):

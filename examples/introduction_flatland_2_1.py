@@ -1,14 +1,17 @@
 import numpy as np
+import os
 
 # In Flatland you can use custom observation builders and predicitors
 # Observation builders generate the observation needed by the controller
 # Preditctors can be used to do short time prediction which can help in avoiding conflicts in the network
-from flatland.envs.malfunction_generators import malfunction_from_params, MalfunctionParameters
+from flatland.envs.malfunction_generators import malfunction_from_params, MalfunctionParameters, ParamMalfunctionGen
+
 from flatland.envs.observations import GlobalObsForRailEnv
 # First of all we import the Flatland rail environment
 from flatland.envs.rail_env import RailEnv
 from flatland.envs.rail_env import RailEnvActions
 from flatland.envs.rail_generators import sparse_rail_generator
+#from flatland.envs.sparse_rail_gen import SparseRailGen
 from flatland.envs.schedule_generators import sparse_schedule_generator
 # We also include a renderer because we want to visualize what is going on in the environment
 from flatland.utils.rendertools import RenderTool, AgentRenderVariant
@@ -45,6 +48,14 @@ rail_generator = sparse_rail_generator(max_num_cities=cities_in_map,
                                        max_rails_in_city=max_rail_in_cities,
                                        )
 
+#rail_generator = SparseRailGen(max_num_cities=cities_in_map,
+#                                       seed=seed,
+#                                       grid_mode=grid_distribution_of_cities,
+#                                       max_rails_between_cities=max_rails_between_cities,
+#                                       max_rails_in_city=max_rail_in_cities,
+#                                       )
+
+
 # The schedule generator can make very basic schedules with a start point, end point and a speed profile for each agent.
 # The speed profiles can be adjusted directly as well as shown later on. We start by introducing a statistical
 # distribution of speed profiles
@@ -62,7 +73,7 @@ schedule_generator = sparse_schedule_generator(speed_ration_map)
 # We can furthermore pass stochastic data to the RailEnv constructor which will allow for stochastic malfunctions
 # during an episode.
 
-stochastic_data = MalfunctionParameters(malfunction_rate=10000,  # Rate of malfunction occurence
+stochastic_data = MalfunctionParameters(malfunction_rate=1/10000,  # Rate of malfunction occurence
                                         min_duration=15,  # Minimal duration of malfunction
                                         max_duration=50  # Max duration of malfunction
                                         )
@@ -79,12 +90,13 @@ env = RailEnv(width=width,
               schedule_generator=schedule_generator,
               number_of_agents=nr_trains,
               obs_builder_object=observation_builder,
-              malfunction_generator_and_process_data=malfunction_from_params(stochastic_data),
+              #malfunction_generator_and_process_data=malfunction_from_params(stochastic_data),
+              malfunction_generator=ParamMalfunctionGen(stochastic_data),
               remove_agents_at_target=True)
 env.reset()
 
 # Initiate the renderer
-env_renderer = RenderTool(env, gl="PILSVG",
+env_renderer = RenderTool(env,
                           agent_render_variant=AgentRenderVariant.ONE_STEP_BEHIND,
                           show_debug=False,
                           screen_height=600,  # Adjust these parameters to fit your resolution
@@ -243,6 +255,8 @@ score = 0
 # Run episode
 frame_step = 0
 
+os.makedirs("tmp/frames", exist_ok=True)
+
 for step in range(500):
     # Chose an action for each agent in the environment
     for a in range(env.get_num_agents()):
@@ -255,7 +269,7 @@ for step in range(500):
     next_obs, all_rewards, done, _ = env.step(action_dict)
 
     env_renderer.render_env(show=True, show_observations=False, show_predictions=False)
-    env_renderer.gl.save_image('./misc/Fames2/flatland_frame_{:04d}.png'.format(step))
+    env_renderer.gl.save_image('tmp/frames/flatland_frame_{:04d}.png'.format(step))
     frame_step += 1
     # Update replay buffer and train agent
     for a in range(env.get_num_agents()):

@@ -27,7 +27,8 @@ from flatland.evaluators import messages
 try:
     from flatland.utils.rendertools import RenderTool
 except:
-    print("failed load redertool")
+    print("failed render tool")
+
 use_signals_in_timeout = True
 if os.name == 'nt':
     """
@@ -220,6 +221,10 @@ class FlatlandRemoteEvaluationService:
             password=self.remote_password
         )
         self.redis_conn = redis.Redis(connection_pool=self.redis_pool)
+        try:
+            self.redis_conn.delete(self.command_channel)
+        except Exception as e:
+            print("Cannot delete command_channel:",e)
 
     def get_redis_connection(self):
         """

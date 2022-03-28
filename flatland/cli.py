@@ -15,7 +15,7 @@ from flatland.evaluators.service import FlatlandRemoteEvaluationService
 try:
     from flatland.utils.rendertools import RenderTool
 except:
-    print("load rendertool failed")
+    print("failed render tool")
 
 @click.command()
 def demo(args=None):

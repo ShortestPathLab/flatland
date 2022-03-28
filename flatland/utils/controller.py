@@ -1,13 +1,9 @@
 
 from threading import local
 from flatland.envs.rail_env import RailEnv
-from flatland.evaluators.client import FlatlandRemoteClient
-from flatland.envs.observations import TreeObsForRailEnv, GlobalObsForRailEnv
-from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 from flatland.envs.rail_generators import complex_rail_generator, rail_from_file
 from flatland.envs.schedule_generators import complex_schedule_generator, schedule_from_file
 from flatland.envs.rail_env import RailEnv
-from flatland.utils.rendertools import RenderTool, AgentRenderVariant
 from enum import IntEnum
 import time, os, sys, json
 import numpy as np
@@ -123,7 +119,8 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, questio
     statistics = []
     runtimes = []
     pscores = {}
-
+    if visualizer:
+        from flatland.utils.rendertools import RenderTool, AgentRenderVariant
     print(output_header)
     for i, test_case in enumerate(test_cases):
         test_name = os.path.basename(test_case)

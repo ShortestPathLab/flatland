@@ -1,12 +1,24 @@
 
+import csv
+from http.client import UnimplementedFileMode
 from threading import local
 from flatland.envs.rail_env import RailEnv
 from flatland.envs.rail_generators import complex_rail_generator, rail_from_file
 from flatland.envs.schedule_generators import complex_schedule_generator, schedule_from_file
 from flatland.envs.rail_env import RailEnv
 from enum import IntEnum
-import time, os, sys, json
+import time, os, sys, json, argparse, glob
 import numpy as np
+
+parser = argparse.ArgumentParser(description='Args for remote evaluation')
+parser.add_argument('--remote-mode', default = False, action="store_true",
+                    help='If running in remote mode')
+parser.add_argument('--tests', type=str, default = None,
+                    help='Path for test cases')
+parser.add_argument('-q', type=int, default = 1,
+                    help='Question type')      
+parser.add_argument('-o', type=str, default = None,
+                    help='Output file')                
 
 class HiddenPrints:
     def __enter__(self):
@@ -17,11 +29,22 @@ class HiddenPrints:
         sys.stdout.close()
         sys.stdout = self._original_stdout
 
+_original_stdout = sys.stdout
+def mute_print():
+    _original_stdout = sys.stdout
+    sys.stdout = open(os.devnull, 'w')
+
+def unmute_print():
+    sys.stdout.close()
+    sys.stdout = _original_stdout
+
 def eprint(*args, **kwargs):
     print("[ERROR] ",*args, file=sys.stderr, **kwargs)
 
 
 output_template = "{0:18} | {1:12} | {2:12} | {3:12} | {4:10} | {5:12} | {6:12} | {7:12} | {8:12} | {9:12}"
+csv_template = "{0},{1},{2},{3},{4},{5},{6},{7},{8},{9}\n"
+
 output_header = output_template.format("Test case", "Total agents","Agents done", "DDLs met","Plan Time", "SIC", "Makespan","Penalty","Final SIC","P Score")
 
 
@@ -115,15 +138,18 @@ def check_conflict(time_step,path_all,local_env: RailEnv, debug=False):
             conflict = True
     return conflict
 
-def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, question_type: int, ddl: list=None, ddl_scale: int=0.2, baseline_pscore = {}, save_pscore = None,  penalty_scale=4):
+def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, question_type: int, ddl: list=None, ddl_scale: int=0.2, baseline_pscore = {}, save_pscore = None,  penalty_scale=4, mute = False, write = None):
     statistics = []
     runtimes = []
     pscores = {}
     if visualizer:
         from flatland.utils.rendertools import RenderTool, AgentRenderVariant
-    print(output_header)
+    print(output_header, flush=True)
+    if write is not None:
+        out = open(write, "w+",1)
+    
     for i, test_case in enumerate(test_cases):
-        test_name = os.path.basename(test_case)
+        test_name =  os.path.basename(os.path.dirname(test_case))+"/"+os.path.basename(test_case).replace(".pkl","")
         if debug:
             print("Loading evaluation: {}".format(test_case))
         local_env = RailEnv(width=1,
@@ -150,6 +176,8 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, questio
             env_renderer.render_env(show=True, show_observations=False, show_predictions=False)
         path_all = []
         start_t = time.time()
+        if mute:
+            mute_print()
         if question_type == 1:
             agent_id = 0
             agent = local_env.agents[agent_id]
@@ -181,7 +209,8 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, questio
         else:
             eprint("No such question type option.")
             exit(1)
-
+        if mute:
+            unmute_print()
         runtimes.append(round(time.time()-start_t,2))
 
         time_step = 0
@@ -268,6 +297,12 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, questio
                                      str(statistic_dict["deadlines_met"]), str(runtimes[-1]),
                                      str(statistic_dict["sum_of_cost"]), str(statistic_dict["time_step"]),
                                      str(sum(statistic_dict["penalty"])),str(statistic_dict["sic_final"]),str(statistic_dict["p"])+("({})".format(statistic_dict["f"]) if baseline_pscore else "")
+                                     ),flush=True)
+        if write is not None:
+            out.write(csv_template.format(test_name, str(statistic_dict["No. of agents"]), str(statistic_dict["num_done"]),
+                                     str(statistic_dict["deadlines_met"]), str(runtimes[-1]),
+                                     str(statistic_dict["sum_of_cost"]), str(statistic_dict["time_step"]),
+                                     str(sum(statistic_dict["penalty"])),str(statistic_dict["sic_final"]),str(statistic_dict["p"])+("({})".format(statistic_dict["f"]) if baseline_pscore else "")
                                      ))
         statistics.append(statistic_dict)
 
@@ -306,153 +341,30 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, questio
     print(output_template.format("Summary", str(sum_agents)+" (sum)", str(num_done)+" (sum)", str(sum_ddl_met)+"(sum)",str(sum_runtime)+"(sum)",
                                  str(sum_cost)+" (sum)", str(sum_make)+" (sum)", 
                                  str(sum_penalty)+" (sum)",str(sum_sic_final)+" (sum)",str(sum_p)+" (final)"+(str(sum_f) if baseline_pscore else "")
+                                 ),flush=True)
+    if write is not None:
+        out.write(csv_template.format("Summary", str(sum_agents)+" (sum)", str(num_done)+" (sum)", str(sum_ddl_met)+"(sum)",str(sum_runtime)+"(sum)",
+                                 str(sum_cost)+" (sum)", str(sum_make)+" (sum)", 
+                                 str(sum_penalty)+" (sum)",str(sum_sic_final)+" (sum)",str(sum_p)+" (final)"+(str(sum_f) if baseline_pscore else "")
                                  ))
-    input("Press enter to exit:")
+        out.close()
+    if not mute:
+        input("Press enter to exit:")
 
 def remote_evaluator(get_path, args):
-    remote_client = FlatlandRemoteClient()
+    args = parser.parse_args(args[1:])
+    path = args.tests
+    q =args.q
+    tests = glob.glob("{}/level_*/test_*.pkl".format(path))
+    tests.sort()
+    if q == 1:
+        evaluator(get_path,tests,False,False,1,mute = True,write=args.o)
+    elif q == 2:
+        evaluator(get_path,tests,False,False,2,mute = True,write=args.o)
+    elif q == 3:
+        deadline_files =  [test.replace(".pkl",".ddl") for test in tests]
+        evaluator(get_path,tests, False, False, 3, deadline_files,penalty_scale=4,mute = True, write=args.o)
 
-    #####################################################################
-    # Instantiate your custom Observation Builder
-    #
-    # You can build your own Observation Builder by following
-    # the example here :
-    # https://gitlab.aicrowd.com/flatland/flatland/blob/master/flatland/envs/observations.py#L14
-    #####################################################################
-    my_observation_builder = TreeObsForRailEnv(max_depth=2, predictor=ShortestPathPredictorForRailEnv())
-
-
-    #####################################################################
-    # Main evaluation loop
-    #
-    # This iterates over an arbitrary number of env evaluations
-    #####################################################################
-    evaluation_number = 0
-    while True:
-
-        evaluation_number += 1
-        # Switch to a new evaluation environemnt
-        #
-        # a remote_client.env_create is similar to instantiating a
-        # RailEnv and then doing a env.reset()
-        # hence it returns the first observation from the
-        # env.reset()
-        #
-        # You can also pass your custom observation_builder object
-        # to allow you to have as much control as you wish
-        # over the observation of your choice.
-        time_start = time.time()
-        observation, info = remote_client.env_create(
-            obs_builder_object=my_observation_builder
-        )
-        env_creation_time = time.time() - time_start
-        if not observation:
-            #
-            # If the remote_client returns False on a `env_create` call,
-            # then it basically means that your agent has already been
-            # evaluated on all the required evaluation environments,
-            # and hence its safe to break out of the main evaluation loop
-            break
-
-        print("Evaluation Number : {}".format(evaluation_number))
-
-        #####################################################################
-        # Access to a local copy of the environment
-        #
-        #####################################################################
-        # Note: You can access a local copy of the environment
-        # by using :
-        #       remote_client.env
-        #
-        # But please ensure to not make any changes (or perform any action) on
-        # the local copy of the env, as then it will diverge from
-        # the state of the remote copy of the env, and the observations and
-        # rewards, etc will behave unexpectedly
-        #
-        # You can however probe the local_env instance to get any information
-        # you need from the environment. It is a valid RailEnv instance.
-        local_env = remote_client.env
-        number_of_agents = len(local_env.agents)
-
-        # env_renderer = RenderTool(local_env, gl="PILSVG",
-        #                       show_debug=True,
-        #                       screen_height=1000,
-        #                       screen_width=1000)
-
-        # Now we enter into another infinite loop where we
-        # compute the actions for all the individual steps in this episode
-        # until the episode is `done`
-        #
-        # An episode is considered done when either all the agents have
-        # reached their target destination
-        # or when the number of time steps has exceed max_time_steps, which
-        # is defined by :
-        #
-        # max_time_steps = int(4 * 2 * (env.width + env.height + 20))
-        #
-
-        path_all = get_path(local_env)
-
-        time_taken_by_controller = []
-        time_taken_per_step = []
-        steps = 0
-        while True:
-            #####################################################################
-            # Evaluation of a single episode
-            #
-            #####################################################################
-            # Compute the action for this step by using the previously
-            # defined controller
-            time_start = time.time()
-            action, out_of_path, inconsistent = path_controller(steps, local_env, path_all)
-            if out_of_path: 
-                action = {}
-            
-            time_taken = time.time() - time_start
-            time_taken_by_controller.append(time_taken)
-
-            # Perform the chosen action on the environment.
-            # The action gets applied to both the local and the remote copy
-            # of the environment instance, and the observation is what is
-            # returned by the local copy of the env, and the rewards, and done and info
-            # are returned by the remote copy of the env
-            time_start = time.time()
-            observation, all_rewards, done, info = remote_client.env_step(action)
-            steps += 1
-            time_taken = time.time() - time_start
-            time_taken_per_step.append(time_taken)
-            # env_renderer.render_env(show=True, show_observations=False, show_predictions=False)
-
-            if done['__all__']:
-                print("Reward : ", sum(list(all_rewards.values())))
-                #
-                # When done['__all__'] == True, then the evaluation of this
-                # particular Env instantiation is complete, and we can break out
-                # of this loop, and move onto the next Env evaluation
-                break
-
-        np_time_taken_by_controller = np.array(time_taken_by_controller)
-        np_time_taken_per_step = np.array(time_taken_per_step)
-        print("=" * 100)
-        print("=" * 100)
-        print("Evaluation Number : ", evaluation_number)
-        print("Current Env Path : ", remote_client.current_env_path)
-        print("Env Creation Time : ", env_creation_time)
-        print("Number of Steps : ", steps)
-        print("Mean/Std of Time taken by Controller : ", np_time_taken_by_controller.mean(),
-              np_time_taken_by_controller.std())
-        print("Mean/Std of Time per Step : ", np_time_taken_per_step.mean(), np_time_taken_per_step.std())
-        print("=" * 100)
-
-    print("Evaluation of all environments complete...")
-    ########################################################################
-    # Submit your Results
-    #
-    # Please do not forget to include this call, as this triggers the
-    # final computation of the score statistics, video generation, etc
-    # and is necesaary to have your submission marked as successfully evaluated
-    ########################################################################
-    print(remote_client.submit())
 
 
 

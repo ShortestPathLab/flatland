@@ -197,7 +197,7 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, questio
             if ddl:
                 deadlines = local_env.read_deadlines(ddl[i])
             else:
-                deadlines = local_env.generate_deadlines(ddl_scale, group_size= len(local_env.agents)//5)
+                deadlines = local_env.generate_deadlines(ddl_scale, group_size= max(1,len(local_env.agents)//5))
                 local_env.save_deadlines(test_case[:-4], deadlines)
             local_env.set_deadlines(deadlines)
 

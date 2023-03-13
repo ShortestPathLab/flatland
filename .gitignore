@@ -118,3 +118,7 @@ test_save.dat
 
 .visualizations
 .history
+.DS_Store
+dump.rdb
+.gitignore
+examples/test_0.ddl

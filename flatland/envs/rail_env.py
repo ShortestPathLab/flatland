@@ -204,7 +204,7 @@ class RailEnv(Environment):
         super().__init__()
 
         if malfunction_generator_and_process_data is not None:
-            print("DEPRECATED - RailEnv arg: malfunction_and_process_data - use malfunction_generator")
+            # print("DEPRECATED - RailEnv arg: malfunction_and_process_data - use malfunction_generator")
             self.malfunction_generator, self.malfunction_process_data = malfunction_generator_and_process_data
         elif malfunction_generator is not None:
             self.malfunction_generator = malfunction_generator
@@ -529,7 +529,8 @@ class RailEnv(Environment):
                 self.rewards_dict[i_agent] = 0
 
                 # Induce malfunction before we do a step, thus a broken agent can't move in this step
-                self._break_agent(agent)
+                if self._elapsed_steps > 2:
+                    self._break_agent(agent)
 
                 # Perform step on the agent
                 self._step_agent(i_agent, action_dict_.get(i_agent))
@@ -553,7 +554,8 @@ class RailEnv(Environment):
                 self.rewards_dict[i_agent] = 0
 
                 # Induce malfunction before we do a step, thus a broken agent can't move in this step
-                self._break_agent(agent)
+                if self._elapsed_steps > 2:
+                    self._break_agent(agent)
 
                 # Perform step on the agent
                 self._step_agent_cf(i_agent, action_dict_.get(i_agent))
@@ -893,6 +895,9 @@ class RailEnv(Environment):
                 self.rewards_dict[i_agent] += self.step_penalty * agent.speed_data['speed']
         else:
             # step penalty if not moving (stopped now or before)
+            if agent.speed_data['position_fraction'] > 0.999 and agent.speed_data['speed'] == 1.0:
+                agent.speed_data['position_fraction'] = 0.0
+
             self.rewards_dict[i_agent] += self.step_penalty * agent.speed_data['speed']
 
     def _set_agent_to_initial_position(self, agent: EnvAgent, new_position: IntVector2D):
@@ -1101,7 +1106,7 @@ class RailEnv(Environment):
             pickle.dump(deadlines, handle, protocol=pickle.HIGHEST_PROTOCOL)
         print("successfully saved deadlines...")
 
-    def generate_deadlines(self, deadline_scale, group_size = 10):
+    def generate_deadlines(self, deadline_scale, group_size = 10, malfunction_scale = 1):
         # TODO: seed generation
         num_agents = len(self.agents)
         deadlines = [None] * num_agents
@@ -1111,8 +1116,8 @@ class RailEnv(Environment):
         for i, agent in enumerate(shuffled):
             x, y = agent.initial_position
             dist = int(d_map[agent.handle, x, y, agent.direction])
-            low_dist = int(dist * (1+deadline_scale*(i//group_size)))
-            upp_dist = int(dist * (1+deadline_scale*(i//group_size+1)))
+            low_dist = int(dist * (1+deadline_scale*(i//group_size))*malfunction_scale)
+            upp_dist = int(dist * (1+deadline_scale*(i//group_size+1))*malfunction_scale)
             deadline = random.randint(low_dist, upp_dist)
             deadlines[agent.handle] = deadline
         return deadlines

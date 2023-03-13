@@ -1,10 +1,12 @@
 
-import csv
+import copy
 from http.client import UnimplementedFileMode
 from threading import local
 from flatland.envs.rail_env import RailEnv
 from flatland.envs.rail_generators import complex_rail_generator, rail_from_file
 from flatland.envs.schedule_generators import complex_schedule_generator, schedule_from_file
+from flatland.envs.malfunction_generators import ParamMalfunctionGen,MalfunctionParameters,malfunction_from_file
+
 from flatland.envs.rail_env import RailEnv
 from enum import IntEnum
 import time, os, sys, json, argparse, glob
@@ -41,6 +43,9 @@ def unmute_print():
 def eprint(*args, **kwargs):
     print("[ERROR] ",*args, file=sys.stderr, **kwargs)
 
+def wprint(*args, **kwargs):
+    print("[WARN] ",*args, file=sys.stderr, **kwargs)
+
 
 output_template = "{0:18} | {1:12} | {2:12} | {3:12} | {4:10} | {5:12} | {6:12} | {7:12} | {8:12} | {9:12}"
 csv_template = "{0},{1},{2},{3},{4},{5},{6},{7},{8},{9}\n"
@@ -73,12 +78,12 @@ def path_controller(time_step,local_env: RailEnv, path_all: list, debug=False):
             else:
                 action_dict[agent_id] = Train_Actions.NOTHING
             out_of_path = False
-        elif time_step >= len(path_all[agent_id]):
+        elif time_step >= len(path_all[agent_id]) or local_env.agents[agent_id].status==3:
             action_dict[agent_id] = Train_Actions.NOTHING
         else:
             action_dict[agent_id] = get_action(agent_id, path_all[agent_id][time_step], local_env)
             if action_dict[agent_id] == -1:
-                action_dict[agent_id] = 0
+                action_dict[agent_id] = Train_Actions.STOP
                 if debug:
                     eprint("Agent {} cannot reach location {} from location {}. Path is inconsistent." \
                        .format(agent_id, path_all[agent_id][time_step], local_env.agents[agent_id].position))
@@ -121,24 +126,27 @@ def get_action(agent_id: int, next_loc: tuple, env: RailEnv):
 
 def check_conflict(time_step,path_all,local_env: RailEnv, debug=False):
     conflict = False
+    failed_agents = []
     for agent_id in range(0, len(local_env.agents)):
         if local_env.agents[agent_id].position != None and len(path_all[agent_id]) > time_step and local_env.agents[agent_id].position != path_all[agent_id][time_step]:
             conflict_id = -1
-            cocurrent_move = False
+            failed_agents.append(agent_id)
             for i in range(0, len(local_env.agents)):
                 if i != agent_id and  path_all[agent_id][time_step] == local_env.agents[i].position:
                     conflict_id = i
-                    break
+                    
 
             if debug:
                 if conflict_id == -1:
-                    eprint("Agent {} failed to move to {} at timestep {}. Check visualizer for what happened.".format(agent_id, path_all[agent_id][time_step], time_step))
+                    wprint("Agent {} failed to move to {} at timestep {}. Will call replan function if in question 3.".format(agent_id, path_all[agent_id][time_step], time_step))
                 else:
-                    eprint("Agent {} have conflict when trying to reach {} at timestep {} with Agent {}".format(agent_id, path_all[agent_id][time_step], time_step,conflict_id))
+                    wprint("Agent {} have conflict when trying to reach {} at timestep {} with Agent {}. Will call replan function if in question 3.".format(agent_id, path_all[agent_id][time_step], time_step,conflict_id))
             conflict = True
-    return conflict
+    return conflict, failed_agents
 
-def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, question_type: int, ddl: list=None, ddl_scale: int=0.2, baseline_pscore = {}, save_pscore = None,  penalty_scale=4, mute = False, write = None):
+def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, question_type: int, 
+              ddl: list=None, ddl_scale: int=0.2, baseline_pscore = {}, save_pscore = None,  
+              penalty_scale=2, mute = False, write = None, replan = None):
     statistics = []
     runtimes = []
     pscores = {}
@@ -157,7 +165,8 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, questio
                             rail_generator=rail_from_file(test_case),
                             schedule_generator=schedule_from_file(test_case),
                             # schedule_generator=schedule_from_file(test_case, ddl_test_case),
-                            remove_agents_at_target=True
+                            remove_agents_at_target=True,
+                            malfunction_generator_and_process_data= malfunction_from_file(test_case) if question_type == 3 else None
                             # Removes agents at the end of their journey to make space for others
                             )
 
@@ -170,7 +179,7 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, questio
         # Initiate the renderer
         if visualizer:
             env_renderer = RenderTool(local_env,
-                                      show_debug=debug,
+                                      show_debug=True,
                                       screen_height=900,  # Adjust these parameters to fit your resolution
                                       screen_width=900)  # Adjust these parameters to fit your resolution
             env_renderer.render_env(show=True, show_observations=False, show_predictions=False)
@@ -181,15 +190,15 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, questio
         if question_type == 1:
             agent_id = 0
             agent = local_env.agents[agent_id]
-            path = get_path(agent.initial_position, agent.initial_direction, agent.target, local_env)
+            path = get_path(agent.initial_position, agent.initial_direction, agent.target, copy.deepcopy(local_env.rail), local_env._max_episode_steps)
             path_all.append(path[:])
             if debug:
                 print("Agent: {}, Path: {}".format(agent_id, path))
         elif question_type == 2:
             for agent_id in range(0, len(local_env.agents)):
                 agent = local_env.agents[agent_id]
-                path = get_path(agent.initial_position, agent.initial_direction, agent.target, local_env, agent_id,
-                                path_all[:])
+                path = get_path(agent.initial_position, agent.initial_direction, agent.target, copy.deepcopy(local_env.rail), agent_id,
+                                path_all[:], local_env._max_episode_steps)
                 path_all.append(path[:])
                 if debug:
                     print("Agent: {}, Path: {}".format(agent_id, path))
@@ -197,11 +206,14 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, questio
             if ddl:
                 deadlines = local_env.read_deadlines(ddl[i])
             else:
-                deadlines = local_env.generate_deadlines(ddl_scale, group_size= max(1,len(local_env.agents)//5))
+                expected_delay = local_env.malfunction_process_data.malfunction_rate*(local_env.width+local_env.height)*((local_env.malfunction_process_data.min_duration+local_env.malfunction_process_data.max_duration)/2)
+                deadlines = local_env.generate_deadlines(ddl_scale, 
+                                                         group_size= max(1,len(local_env.agents)//5), 
+                                                         malfunction_scale=(1 + expected_delay/(local_env.width+local_env.height)/2 ))
                 local_env.save_deadlines(test_case[:-4], deadlines)
             local_env.set_deadlines(deadlines)
 
-            path_all = get_path(local_env)
+            path_all = get_path(copy.deepcopy(local_env.agents), copy.deepcopy(local_env.rail), local_env._max_episode_steps)
             if debug:
                 for agent_id in range(0, len(local_env.agents)):
                     print("Agent: {}, Path: {}".format(agent_id, path_all[agent_id]))
@@ -213,6 +225,7 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, questio
             unmute_print()
         runtimes.append(round(time.time()-start_t,2))
 
+        replan_runtime = 0
         time_step = 0
         out_of_path = False
         inconsistent = False
@@ -228,46 +241,70 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, questio
 
             if inconsistent:
                 if debug:
-                    eprint("Press Enter to continue:")
+                    wprint("Press Enter to continue:")
                     input()
 
             action_dict, out_of_path, inconsistent = path_controller(time_step, local_env, path_all, debug)
             statistic_dict["time_step"] = time_step
 
 
-
+            malfunction_before = [agent.malfunction_data["malfunction"]>0 and agent.status < 2 for agent in local_env.agents]
             # execuate action
             next_obs, all_rewards, done, _ = local_env.step(action_dict)
 
             if visualizer:
                 env_renderer.render_env(show=True, show_observations=False, show_predictions=False)
 
+            # Find malfunction and failed execuation agents. Then call replan function.
+            if question_type == 3:
+                conflict = False
+                failed_agents = []
+                new_malfunctions = []
+                if time_step!=0:
+                    conflict, failed_agents = check_conflict(time_step, path_all, local_env, debug)
+                    if conflict:
+                        if debug:
+                            wprint("Press Enter to continue:")
+                            input()
+                for agent in local_env.agents:
+                    if agent.status !=3 and time_step >= len(path_all[agent.handle]):
+                        failed_agents.append(agent.handle)
+                    if agent.malfunction_data["malfunction"]>0 and agent.status < 2 and not malfunction_before[agent.handle]:
+                        new_malfunctions.append(agent.handle)
+                if len(new_malfunctions) != 0 or conflict:
+                    if debug:
+                        print("Find new malfunctions: ", new_malfunctions, " Find failed execuation agents: ", failed_agents)
+                        print("Call replan function... ...")
+                    replan_start = time.time()
+                    if mute:
+                        mute_print()
+                    new_paths = replan(copy.deepcopy(local_env.agents), copy.deepcopy(local_env.rail), time_step, copy.deepcopy(path_all), local_env._max_episode_steps, new_malfunctions, failed_agents)
+                    if mute:
+                        unmute_print()
+                    replan_runtime += round(time.time()-replan_start,2)
+                    path_all = new_paths
+
+
             num_done = 0
             new_cost = 0
             num_deadlines_met = 0
             for agent_id in range(0, len(local_env.agents)):
-                if done[agent_id]:
+                if local_env.agents[agent_id].status in [2,3] :
                     num_done += 1
-                    if local_env.agents[agent_id].deadline:
+                    if question_type == 3 and local_env.agents[agent_id].deadline:
                         if statistic_dict["cost"][agent_id] <= local_env.agents[agent_id].deadline:
                             num_deadlines_met += 1
-                        else:
-                            statistic_dict["penalty"][agent_id] = penalty_scale*(statistic_dict["cost"][agent_id] - local_env.agents[agent_id].deadline)
                     else:
                         num_deadlines_met += 1
                 else:
+                    if question_type == 3 and time_step > local_env.agents[agent_id].deadline:
+                        statistic_dict["penalty"][agent_id]+=1
                     statistic_dict["cost"][agent_id]+= 1
 
             statistic_dict["num_done"] = num_done
             statistic_dict["done_percentage"] = round(num_done / len(local_env.agents), 2)
             statistic_dict["deadlines_met"] = num_deadlines_met
 
-            if time_step!=0:
-                conflict = check_conflict(time_step, path_all, local_env, debug)
-                if conflict:
-                    if debug:
-                        eprint("Press Enter to continue:")
-                        input()
             if debug:
                 time.sleep(0.2)
 
@@ -279,7 +316,9 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, questio
                 time.sleep(1)
                 break
             time_step += 1
-
+        
+        runtimes[-1] += replan_runtime
+        # End of one episode. 
         for agent_id in range(0, len(local_env.agents)):
             if done[agent_id]:
                 statistic_dict["sum_of_cost"] += statistic_dict["cost"][agent_id]
@@ -351,7 +390,7 @@ def evaluator(get_path, test_cases: list, debug: bool, visualizer: bool, questio
     if not mute:
         input("Press enter to exit:")
 
-def remote_evaluator(get_path, args):
+def remote_evaluator(get_path, args, replan=None):
     args = parser.parse_args(args[1:])
     path = args.tests
     q =args.q
@@ -363,7 +402,7 @@ def remote_evaluator(get_path, args):
         evaluator(get_path,tests,False,False,2,mute = True,write=args.o)
     elif q == 3:
         deadline_files =  [test.replace(".pkl",".ddl") for test in tests]
-        evaluator(get_path,tests, False, False, 3, deadline_files,penalty_scale=4,mute = True, write=args.o)
+        evaluator(get_path,tests, False, False, 3, deadline_files,penalty_scale=4,mute = True, write=args.o, replan=replan)
 
 
 

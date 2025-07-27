@@ -497,7 +497,7 @@ def evaluator(
             statistic_dict["penalty"]
         )
         if question_type == 1:
-            statistic_dict["p"] = None
+            statistic_dict["p"] = int(statistic_dict["sic_final"] / num_of_agents)
         else:
             statistic_dict["p"] = int(statistic_dict["sic_final"] / num_of_agents)
             if baseline_pscore:

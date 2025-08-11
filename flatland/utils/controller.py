@@ -1,20 +1,20 @@
+import argparse
 import copy
+import glob
+import json
+import os
+import sys
+import time
+from enum import IntEnum
+
+from flatland.envs.malfunction_generators import (
+    malfunction_from_file,
+)
 from flatland.envs.rail_env import RailEnv
 from flatland.envs.rail_generators import rail_from_file
 from flatland.envs.schedule_generators import (
     schedule_from_file,
 )
-from flatland.envs.malfunction_generators import (
-    malfunction_from_file,
-)
-
-from enum import IntEnum
-import time
-import os
-import sys
-import json
-import argparse
-import glob
 
 parser = argparse.ArgumentParser(description="Args for remote evaluation")
 parser.add_argument(
@@ -226,7 +226,7 @@ def evaluator(
     runtimes = []
     pscores = {}
     if visualizer:
-        from flatland.utils.rendertools import RenderTool, AgentRenderVariant
+        from flatland.utils.rendertools import AgentRenderVariant, RenderTool
     print(output_header, flush=True)
     if write is not None:
         out = open(write, "w+", 1)

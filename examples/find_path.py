@@ -28,12 +28,12 @@ print("Train 2: Start  (1, 5)  Goal  (6, 1)")
 def get_path(agents, rail, max_ep_steps):
     return [train_1, train_2]
 
-import glob, os
+import glob
+import os
 
 #import necessary modules that this python scripts need.
 try:
-    from flatland.envs.rail_env import RailEnv
-    from flatland.utils.controller import get_action, Train_Actions, Directions, check_conflict, path_controller, evaluator
+    from flatland.utils.controller import evaluator
 except Exception as e:
     print("Cannot load flatland modules! Make sure your flatland-rl is properly installed.")
     print(e)

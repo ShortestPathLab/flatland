@@ -1,19 +1,11 @@
 
 
-import PIL
 from IPython import display
 from ipycanvas import canvas
-import time
 
-from flatland.envs import malfunction_generators as malgen
-from flatland.envs.agent_utils import EnvAgent
 #from flatland.envs import sparse_rail_gen as spgen
-from flatland.envs import rail_generators as rail_gen
-from flatland.envs import agent_chains as ac
-from flatland.envs.rail_env import RailEnv, RailEnvActions
-from flatland.envs.persistence import RailEnvPersister
+from flatland.envs.rail_env import RailEnvActions
 from flatland.utils.rendertools import RenderTool
-from flatland.utils import env_edit_utils as eeu
 from typing import List, NamedTuple
 
 class Behaviour():

@@ -1,4 +1,4 @@
-.PHONY: clean clean-test clean-pyc clean-build sync lint test coverage docs servedocs benchmarks examples notebooks release dist install help
+.PHONY: clean clean-test clean-pyc clean-build sync lint format test coverage docs servedocs benchmarks examples notebooks release dist install help
 .DEFAULT_GOAL := help
 
 define BROWSER_PYSCRIPT
@@ -53,8 +53,12 @@ clean-test: ## remove test and coverage artifacts
 sync: ## create/update the uv-managed virtualenv from uv.lock
 	uv sync
 
-lint: ## check style with flake8
-	uv run flake8 flatland tests examples benchmarks
+lint: ## check style with ruff
+	uv run ruff check flatland tests examples benchmarks
+
+format: ## auto-format and apply safe lint fixes with ruff
+	uv run ruff check --fix flatland tests examples benchmarks
+	uv run ruff format flatland tests examples benchmarks
 
 test: ## run tests quickly with the default Python
 	echo "$$DISPLAY"

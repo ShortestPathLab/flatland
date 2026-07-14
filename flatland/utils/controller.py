@@ -226,7 +226,7 @@ def evaluator(
     runtimes = []
     pscores = {}
     if visualizer:
-        from flatland.utils.rendertools import AgentRenderVariant, RenderTool
+        from flatland.utils.rendertools import RenderTool
     print(output_header, flush=True)
     if write is not None:
         out = open(write, "w+", 1)

@@ -82,7 +82,7 @@ def evaluator(tests, service_id, shuffle, disable_timeouts, results_path):
     try:
         redis_connection = redis.Redis()
         redis_connection.ping()
-    except redis.exceptions.ConnectionError as e:
+    except redis.exceptions.ConnectionError:
         raise Exception(
             "\nRedis server does not seem to be running on your localhost.\n"
             "Please ensure that you have a redis server running on your localhost"

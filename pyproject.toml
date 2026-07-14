@@ -52,14 +52,13 @@ dev = [
     "benchmarker",
     "bumpversion",
     "coverage",
-    "flake8",
-    "flake8-eradicate",
     "imageio",
     "jupyter",
     "notebook",
     "pydeps",
     "pytest",
     "pyvirtualdisplay",
+    "ruff",
     "twine",
     "watchdog",
     { include-group = "docs" },
@@ -80,6 +79,9 @@ path = "flatland/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["flatland"]
+
+[tool.ruff]
+extend-exclude = ["docs", "notebooks"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

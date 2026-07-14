@@ -16,7 +16,6 @@ from flatland.utils.simple_rail import make_simple_rail
 from flatland.envs.persistence import RailEnvPersister
 from flatland.utils.rendertools import RenderTool
 
-import pytest
 import time
 
 

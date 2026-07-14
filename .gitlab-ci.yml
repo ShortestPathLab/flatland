@@ -36,7 +36,7 @@ tests:
     stage: tests
     script:
         - xvfb-run uv run pytest -v
-        - xvfb-run uv run flake8 flatland tests examples benchmarks
+        - uv run ruff check flatland tests examples benchmarks
         - xvfb-run uv run python benchmarks/run_all_examples.py
         - xvfb-run uv run python notebooks/run_all_notebooks.py
 

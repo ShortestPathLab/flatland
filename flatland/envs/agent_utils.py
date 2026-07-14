@@ -1,7 +1,6 @@
 from enum import IntEnum
 from itertools import starmap
 from typing import Tuple, Optional, NamedTuple
-import pickle
 
 from attr import attrs, attrib, Factory
 

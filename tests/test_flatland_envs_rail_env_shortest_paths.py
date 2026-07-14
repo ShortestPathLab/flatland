@@ -6,7 +6,6 @@ from flatland.core.grid.grid4 import Grid4TransitionsEnum
 from flatland.envs.observations import GlobalObsForRailEnv
 from flatland.envs.rail_env import RailEnv
 from flatland.envs.rail_env_shortest_paths import get_shortest_paths, get_k_shortest_paths
-from flatland.envs.rail_env_utils import load_flatland_environment_from_file
 from flatland.envs.rail_generators import rail_from_grid_transition_map
 from flatland.envs.rail_trainrun_data_structures import Waypoint
 from flatland.envs.schedule_generators import random_schedule_generator

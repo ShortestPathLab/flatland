@@ -1,6 +1,6 @@
 """Rail generators (infrastructure manager, "Infrastrukturbetreiber")."""
-import sys
-import warnings, copy
+import warnings
+import copy
 from typing import Callable, Tuple, Optional, Dict, List
 
 import numpy as np

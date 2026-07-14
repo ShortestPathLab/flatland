@@ -4,7 +4,7 @@ import os
 # In Flatland you can use custom observation builders and predicitors
 # Observation builders generate the observation needed by the controller
 # Preditctors can be used to do short time prediction which can help in avoiding conflicts in the network
-from flatland.envs.malfunction_generators import malfunction_from_params, MalfunctionParameters, ParamMalfunctionGen
+from flatland.envs.malfunction_generators import MalfunctionParameters, ParamMalfunctionGen
 
 from flatland.envs.observations import GlobalObsForRailEnv
 # First of all we import the Flatland rail environment

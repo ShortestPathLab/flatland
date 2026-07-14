@@ -12,8 +12,7 @@ from flatland.core.env_observation_builder import DummyObservationBuilder
 #from flatland.core.grid.grid4_utils import get_new_position
 #from flatland.core.grid.grid_utils import IntVector2D
 from flatland.core.transition_map import GridTransitionMap
-from flatland.envs.agent_utils import Agent, EnvAgent, RailAgentStatus
-from flatland.envs.distance_map import DistanceMap
+from flatland.envs.agent_utils import EnvAgent
 
 #from flatland.envs.observations import GlobalObsForRailEnv
 

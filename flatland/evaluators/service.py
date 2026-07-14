@@ -30,7 +30,6 @@ from flatland.envs.schedule_generators import schedule_from_file
 from flatland.evaluators import aicrowd_helpers
 from flatland.evaluators import messages
 from flatland.utils.rendertools import RenderTool
-from flatland.envs.rail_env_utils import load_flatland_environment_from_file
 from flatland.envs.persistence import RailEnvPersister
 
 use_signals_in_timeout = True

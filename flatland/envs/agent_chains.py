@@ -191,7 +191,7 @@ def render(omc:MotionCheck, horizontal=True):
         #return oAG.draw(format="png")
         # This returns a graphviz object which implements __repr_svg
         return gv.Source(sDot)
-    except ImportError as oError:
+    except ImportError:
         print("Flatland agent_chains ignoring ImportError - install pygraphviz to render graphs")
         return None
 

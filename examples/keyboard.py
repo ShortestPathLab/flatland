@@ -1,6 +1,5 @@
 #import necessary modules that this python scripts need.
 from flatland.envs.rail_generators import complex_rail_generator
-from flatland.envs.schedule_generators import complex_schedule_generator
 from flatland.envs.rail_env import RailEnv
 from flatland.utils.rendertools import RenderTool
 from pyglet.window import key

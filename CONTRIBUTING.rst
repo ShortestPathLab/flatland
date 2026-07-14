@@ -83,11 +83,13 @@ Ready to contribute? Here's how to set up `flatland` for local development.
 
    Now you can make your changes locally.
 
-5. When you're done making changes, check that your changes pass flake8 and the
+5. When you're done making changes, check that your changes pass ruff and the
    tests::
 
-    $ uv run flake8 flatland tests examples benchmarks
+    $ uv run ruff check flatland tests examples benchmarks
     $ uv run pytest
+
+   ``uv run ruff check --fix`` applies the safe fixes automatically, and ``uv run ruff format`` reformats the code.
 
    Prefixing a command with ``uv run`` runs it inside the project virtual env, re-syncing it first if the lockfile
    changed. Alternatively, activate ``.venv`` yourself and drop the prefix.

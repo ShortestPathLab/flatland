@@ -63,7 +63,8 @@ def demo(
         int, typer.Option(help="Episodes to run. 0 runs until you stop it.")
     ] = 1,
     max_steps: Annotated[
-        Optional[int], typer.Option(help="Cap the steps per episode.")
+        Optional[int],
+        typer.Option(help="Cap the steps per episode. Default: a limit scaled to the grid size."),
     ] = None,
     delay: Annotated[
         float, typer.Option(help="Seconds to pause between steps, so you can follow along.")
@@ -127,7 +128,6 @@ def demo(
         schedule_generator=complex_schedule_generator(),
         number_of_agents=agents,
     )
-    env._max_episode_steps = max_steps or int(15 * (env.width + env.height))
 
     renderer = None
     if not no_render:
@@ -149,6 +149,14 @@ def demo(
     while episodes == 0 or episode < episodes:
         episode += 1
         env.reset()
+
+        # After the reset, never before it: reset() takes _max_episode_steps from
+        # the schedule generator, so a cap set any earlier is silently overwritten.
+        # Left alone, the generator's own bound - which it scales to the grid -
+        # stands, and there is no reason for us to second-guess it.
+        if max_steps is not None:
+            env._max_episode_steps = max_steps
+
         if renderer is not None:
             renderer.reset()
 

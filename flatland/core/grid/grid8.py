@@ -1,4 +1,5 @@
 from enum import IntEnum
+from typing import Type
 
 import numpy as np
 
@@ -201,5 +202,5 @@ class Grid8Transitions(Transitions):
 
         return cell_transition
 
-    def get_direction_enum(self) -> IntEnum:
+    def get_direction_enum(self) -> Type[Grid8TransitionsEnum]:
         return Grid8TransitionsEnum

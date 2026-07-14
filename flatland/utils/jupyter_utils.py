@@ -6,7 +6,7 @@ from ipycanvas import canvas
 #from flatland.envs import sparse_rail_gen as spgen
 from flatland.envs.rail_env import RailEnvActions
 from flatland.utils.rendertools import RenderTool
-from typing import List, NamedTuple
+from typing import List, NamedTuple, Optional
 
 class Behaviour():
     def __init__(self, env):
@@ -66,7 +66,7 @@ class ForwardWithPause(Behaviour):
 
 class EnvCanvas():
 
-    def __init__(self, env, behaviour:Behaviour=None):
+    def __init__(self, env, behaviour:Optional[Behaviour]=None):
         self.env = env
         self.iStep = 0
         if behaviour is None:

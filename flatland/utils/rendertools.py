@@ -2,6 +2,7 @@ import time
 import warnings
 from collections import deque
 from enum import IntEnum
+from typing import Optional
 
 import numpy as np
 from numpy import array
@@ -9,6 +10,7 @@ from numpy import array
 from flatland.envs.agent_utils import RailAgentStatus
 
 from flatland.utils import console
+from flatland.utils.graphics_layer import ColorSpec
 from flatland.utils.graphics_pil import PILGL, PILSVG
 from flatland.utils.graphics_web import WEBGL
 
@@ -137,7 +139,18 @@ class RenderBase(object):
     def __init__(self, env):
         pass
 
-    def render_env(self):
+    def render_env(self,
+                   show=False,
+                   show_agents=True,
+                   show_inactive_agents=False,
+                   show_observations=True,
+                   show_predictions=False,
+                   show_rowcols=False,
+                   frames=False,
+                   episode=None,
+                   step=None,
+                   selected_agent=None,
+                   return_image=False) -> Optional[np.ndarray]:
         pass
 
     def close_window(self):
@@ -292,7 +305,8 @@ class RenderLocal(RenderBase):
         else:
             return transition_grid
 
-    def plot_single_agent(self, position_row_col, direction, color="r", target=None, static=False, selected=False):
+    def plot_single_agent(self, position_row_col, direction, color: ColorSpec = "r", target=None, static=False,
+                          selected=False):
         """
         Plot a simple agent.
         Assumes a working graphics layer context (cf a MPL figure).
@@ -312,7 +326,7 @@ class RenderLocal(RenderBase):
 
         color = color
 
-        self.gl.scatter(*xyPos, color=color, layer=1, marker="o", s=100)  # agent location
+        self.gl.scatter(xyPos[0], xyPos[1], color=color, layer=1, marker="o", s=100)  # agent location
         xy_dir_line = array([xyPos, xyPos + direction_xy / 2]).T  # line for agent orient.
         self.gl.plot(*xy_dir_line, color=color, layer=1, lw=5, ms=0, alpha=0.6)
         if selected:
@@ -334,7 +348,8 @@ class RenderLocal(RenderBase):
         rt = self.__class__
         position_xy = np.matmul(position_row_col, rt.row_col_to_xy) + rt.x_y_half
         transition_xy = position_xy + np.matmul(transition_row_col, rt.row_col_to_xy / 2.4)
-        self.gl.scatter(*transition_xy.T, color=color, marker="o", s=50, alpha=0.2)
+        transition_x, transition_y = transition_xy.T
+        self.gl.scatter(transition_x, transition_y, color=color, marker="o", s=50, alpha=0.2)
         if depth is not None:
             for x, y in transition_xy:
                 self.gl.text(x, y, depth)
@@ -532,7 +547,7 @@ class RenderLocal(RenderBase):
                 is_dead_end = nbits == 1
 
                 if not cell_valid:
-                    self.gl.scatter(*center_xy, color="r", s=30)
+                    self.gl.scatter(center_xy[0], center_xy[1], color="r", s=30)
 
                 for orientation in range(4):  # ori is where we're heading
                     from_ori = (orientation + 2) % 4  # 0123=NESW -> 2301=SWNE
@@ -725,7 +740,8 @@ class RenderLocal(RenderBase):
                 if agent.position is None:
                     if show_inactive_agents:
                         # print("agent ", agent_idx, agent.position, agent.old_position, agent.initial_position)
-                        self.gl.set_agent_at(agent_idx, *(agent.initial_position), 
+                        init_row, init_col = agent.initial_position
+                        self.gl.set_agent_at(agent_idx, init_row, init_col,
                             agent.initial_direction, agent.initial_direction,
                             is_selected=(selected_agent == agent_idx),
                             rail_grid=env.rail.grid,
@@ -744,30 +760,27 @@ class RenderLocal(RenderBase):
                     # Most common case - the agent has been running for >1 steps
                     if agent.old_position is not None:
                         position = agent.old_position
-                        direction = agent.direction
                         old_direction = agent.old_direction
 
                     # the agent's first step - it doesn't have an old position yet
-                    elif agent.position is not None:
+                    # (this also covers an agent the editor has just added: agent.position
+                    #  is not None here, see the guard above)
+                    else:
                         position = agent.position
-                        direction = agent.direction
                         old_direction = agent.direction
-                        
-                    # When the editor has just added an agent
-                    elif agent.initial_position is not None:
-                        position = agent.initial_position
-                        direction = agent.initial_direction
-                        old_direction = agent.initial_direction
+                    direction = agent.direction
+
+                    row, col = position
 
                     # set_agent_at uses the agent index for the color
                     if self.agent_render_variant == AgentRenderVariant.ONE_STEP_BEHIND_AND_BOX:
                         self.gl.set_cell_occupied(agent_idx, *(agent.position))
-                    self.gl.set_agent_at(agent_idx, *position, old_direction, direction,
+                    self.gl.set_agent_at(agent_idx, row, col, old_direction, direction,
                                          selected_agent == agent_idx, rail_grid=env.rail.grid,
                                          show_debug=self.show_debug, clear_debug_text=self.clear_debug_text,
                                          malfunction=is_malfunction)
                 else:
-                    position = agent.position
+                    row, col = agent.position
                     direction = agent.direction
                     for possible_direction in range(4):
                         # Is a transition along movement `desired_movement_from_new_cell` to the current cell possible?
@@ -776,7 +789,7 @@ class RenderLocal(RenderBase):
                             direction = possible_direction
 
                             # set_agent_at uses the agent index for the color
-                            self.gl.set_agent_at(agent_idx, *position, agent.direction, direction,
+                            self.gl.set_agent_at(agent_idx, row, col, agent.direction, direction,
                                                  selected_agent == agent_idx, rail_grid=env.rail.grid,
                                                  show_debug=self.show_debug, clear_debug_text=self.clear_debug_text,
                                                  malfunction=is_malfunction)
@@ -784,14 +797,14 @@ class RenderLocal(RenderBase):
                     # set_agent_at uses the agent index for the color
                     if self.agent_render_variant == AgentRenderVariant.AGENT_SHOWS_OPTIONS_AND_BOX:
                         self.gl.set_cell_occupied(agent_idx, *(agent.position))
-                    
+
                     if show_inactive_agents:
                         show_this_agent=True
                     else:
                         show_this_agent = agent.status == RailAgentStatus.ACTIVE
 
                     if show_this_agent:
-                        self.gl.set_agent_at(agent_idx, *position, agent.direction, direction, 
+                        self.gl.set_agent_at(agent_idx, row, col, agent.direction, direction,
                                         selected_agent == agent_idx,
                                         rail_grid=env.rail.grid, malfunction=is_malfunction)
 

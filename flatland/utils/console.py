@@ -196,7 +196,11 @@ class RenderStatus:
 
     def _poll(self):
         while not self._stop.wait(0.25):
-            self._live.update(self._render())
+            # stop() may have torn the Live down between the wait and here.
+            live = self._live
+            if live is None:
+                return
+            live.update(self._render())
 
     def stop(self):
         """Must be called before the process exits, or the terminal is left with

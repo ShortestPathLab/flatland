@@ -3,7 +3,9 @@ from typing import Dict, List, Optional, NamedTuple
 
 import numpy as np
 
+from flatland.core.grid.grid4 import Grid4TransitionsEnum
 from flatland.core.grid.grid_utils import Vec2dOperations as Vec2d
+from flatland.core.transition_map import GridTransitionMap
 from flatland.envs.rail_env import RailEnv, RailEnvActions
 from flatland.envs.rail_env_shortest_paths import get_action_for_move
 from flatland.envs.rail_trainrun_data_structures import Waypoint, Trainrun, TrainrunWaypoint
@@ -31,8 +33,9 @@ class ControllerFromTrainruns():
 
         self.env: RailEnv = env
         self.trainrun_dict: Dict[int, Trainrun] = trainrun_dict
-        self.action_plan: ActionPlanDict = [self._create_action_plan_for_agent(agent_id, chosen_path)
-                                            for agent_id, chosen_path in trainrun_dict.items()]
+        # the action plans are stored in a list indexed by the agent handle
+        self.action_plan: List[ActionPlan] = [self._create_action_plan_for_agent(agent_id, chosen_path)
+                                              for agent_id, chosen_path in trainrun_dict.items()]
 
     def get_waypoint_before_or_at_step(self, agent_id: int, step: int) -> Waypoint:
         """
@@ -60,12 +63,11 @@ class ControllerFromTrainruns():
             # agent loses position as soon as target cell is reached
             return Waypoint(position=None, direction=trainrun[-1].waypoint.direction)
 
-        waypoint = None
+        waypoint: Optional[Waypoint] = None
         for trainrun_waypoint in trainrun:
             if step < trainrun_waypoint.scheduled_at:
-                return waypoint
-            if step >= trainrun_waypoint.scheduled_at:
-                waypoint = trainrun_waypoint.waypoint
+                break
+            waypoint = trainrun_waypoint.waypoint
         assert waypoint is not None
         return waypoint
 
@@ -120,15 +122,15 @@ class ControllerFromTrainruns():
         self.__class__.print_action_plan_dict(self.action_plan)
 
     @staticmethod
-    def print_action_plan_dict(action_plan: ActionPlanDict):
-        """Pretty-prints `ActionPlanDict` to stdout."""
+    def print_action_plan_dict(action_plan: List[ActionPlan]):
+        """Pretty-prints the action plans (indexed by agent handle) to stdout."""
         for agent_id, plan in enumerate(action_plan):
             print("{}: ".format(agent_id))
             for step in plan:
                 print("  {}".format(step))
 
     @staticmethod
-    def assert_actions_plans_equal(expected_action_plan: ActionPlanDict, actual_action_plan: ActionPlanDict):
+    def assert_actions_plans_equal(expected_action_plan: List[ActionPlan], actual_action_plan: List[ActionPlan]):
         assert len(expected_action_plan) == len(actual_action_plan)
         for k in range(len(expected_action_plan)):
             assert len(expected_action_plan[k]) == len(actual_action_plan[k]), \
@@ -147,20 +149,40 @@ class ControllerFromTrainruns():
         assert expected_action_plan == actual_action_plan, \
             "expected {}, found {}".format(expected_action_plan, actual_action_plan)
 
-    def _create_action_plan_for_agent(self, agent_id, trainrun) -> ActionPlan:
-        action_plan = []
+    def _get_action_for_move(self,
+                             trainrun_waypoint: TrainrunWaypoint,
+                             next_trainrun_waypoint: TrainrunWaypoint) -> RailEnvActions:
+        """Determines the action to get from the waypoint to the next waypoint. The two waypoints must be neighbours."""
+        rail: Optional[GridTransitionMap] = self.env.rail
+        assert rail is not None, "env.rail must be initialized, call env.reset() before creating an action plan."
+        position = trainrun_waypoint.waypoint.position
+        next_position = next_trainrun_waypoint.waypoint.position
+        assert position is not None and next_position is not None, "trainrun waypoints must have a position."
+        next_action = get_action_for_move(position,
+                                          Grid4TransitionsEnum(trainrun_waypoint.waypoint.direction),
+                                          next_position,
+                                          next_trainrun_waypoint.waypoint.direction,
+                                          rail)
+        assert next_action is not None, \
+            "no transition from {} to {}".format(trainrun_waypoint.waypoint, next_trainrun_waypoint.waypoint)
+        return next_action
+
+    def _create_action_plan_for_agent(self, agent_id: int, trainrun: Trainrun) -> ActionPlan:
+        action_plan: ActionPlan = []
         agent = self.env.agents[agent_id]
         minimum_cell_time = int(np.ceil(1.0 / agent.speed_data['speed']))
         for path_loop, trainrun_waypoint in enumerate(trainrun):
             trainrun_waypoint: TrainrunWaypoint = trainrun_waypoint
 
             position = trainrun_waypoint.waypoint.position
+            assert position is not None, "trainrun waypoints must have a position."
 
             if Vec2d.is_equal(agent.target, position):
                 break
 
             next_trainrun_waypoint: TrainrunWaypoint = trainrun[path_loop + 1]
             next_position = next_trainrun_waypoint.waypoint.position
+            assert next_position is not None, "trainrun waypoints must have a position."
 
             if path_loop == 0:
                 self._add_action_plan_elements_for_first_path_element_of_agent(
@@ -196,15 +218,7 @@ class ControllerFromTrainruns():
         scheduled_at = trainrun_waypoint.scheduled_at
         next_entry_value = next_trainrun_waypoint.scheduled_at
 
-        position = trainrun_waypoint.waypoint.position
-        direction = trainrun_waypoint.waypoint.direction
-        next_position = next_trainrun_waypoint.waypoint.position
-        next_direction = next_trainrun_waypoint.waypoint.direction
-        next_action = get_action_for_move(position,
-                                          direction,
-                                          next_position,
-                                          next_direction,
-                                          self.env.rail)
+        next_action = self._get_action_for_move(trainrun_waypoint, next_trainrun_waypoint)
 
         # if the next entry is later than minimum_cell_time, then stop here and
         # move minimum_cell_time before the exit
@@ -235,10 +249,6 @@ class ControllerFromTrainruns():
                                                                   next_trainrun_waypoint: TrainrunWaypoint,
                                                                   minimum_cell_time: int):
         scheduled_at = trainrun_waypoint.scheduled_at
-        position = trainrun_waypoint.waypoint.position
-        direction = trainrun_waypoint.waypoint.direction
-        next_position = next_trainrun_waypoint.waypoint.position
-        next_direction = next_trainrun_waypoint.waypoint.direction
 
         # add intial do nothing if we do not enter immediately, actually not necessary
         if scheduled_at > 0:
@@ -249,11 +259,7 @@ class ControllerFromTrainruns():
         action = ActionPlanElement(scheduled_at, RailEnvActions.MOVE_FORWARD)
         action_plan.append(action)
 
-        next_action = get_action_for_move(position,
-                                          direction,
-                                          next_position,
-                                          next_direction,
-                                          self.env.rail)
+        next_action = self._get_action_for_move(trainrun_waypoint, next_trainrun_waypoint)
 
         # if the agent is blocked in the cell, we have to call stop upon entering!
         if next_trainrun_waypoint.scheduled_at > scheduled_at + 1 + minimum_cell_time:

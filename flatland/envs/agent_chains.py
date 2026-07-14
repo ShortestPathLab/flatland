@@ -1,3 +1,7 @@
+from typing import Dict, Iterable, Optional, Set, Tuple
+
+from flatland.core.grid.grid_utils import IntVector2D
+
 
 class MotionCheck(object):
     """ Class to find chains of agents which are "colliding" with a stopped agent.
@@ -12,19 +16,21 @@ class MotionCheck(object):
         graphviz were really for) now lives in notebooks/Agent-Close-Following.ipynb.
     """
     def __init__(self):
-        self.nodes = {}     # rc -> None; an insertion-ordered node set
-        self.succ = {}      # rc -> rc; the single out-edge
-        self.pred = {}      # rc -> {rc: None}; insertion-ordered distinct predecessors
-        self.agent_at = {}  # rc -> agent index, for cells an agent is departing from
-        self.colors = {}    # rc -> colour string
-        self.xlabels = {}   # rc -> label; debug/visualisation only
+        # rc positions are (row, col); agents which have not departed get a dummy (-1, agent index).
+        self.nodes: Dict[IntVector2D, None] = {}                    # rc -> None; an insertion-ordered node set
+        self.succ: Dict[IntVector2D, IntVector2D] = {}              # rc -> rc; the single out-edge
+        self.pred: Dict[IntVector2D, Dict[IntVector2D, None]] = {}  # rc -> {rc: None}; insertion-ordered distinct predecessors
+        self.agent_at: Dict[IntVector2D, int] = {}                  # rc -> agent index, for cells an agent is departing from
+        self.colors: Dict[IntVector2D, str] = {}                    # rc -> colour string
+        self.xlabels: Dict[IntVector2D, str] = {}                   # rc -> label; debug/visualisation only
 
-    def _add_node(self, rc):
+    def _add_node(self, rc: IntVector2D):
         if rc not in self.nodes:
             self.nodes[rc] = None
             self.pred[rc] = {}
 
-    def addAgent(self, iAg, rc1, rc2, xlabel=None):
+    def addAgent(self, iAg: int, rc1: Optional[IntVector2D], rc2: Optional[IntVector2D],
+                 xlabel: Optional[str] = None):
         """ add an agent and its motion as row,col tuples of current and next position.
             The agent's current position is given an "agent" attribute recording the agent index.
             If an agent does not want to move this round (rc1 == rc2) then a self-loop edge is created.
@@ -55,7 +61,7 @@ class MotionCheck(object):
         self.succ[rc1] = rc2
         self.pred[rc2][rc1] = None
 
-    def _reverse_reachable(self, svSources):
+    def _reverse_reachable(self, svSources: Iterable[IntVector2D]) -> Set[IntVector2D]:
         """ Every node that reaches one of svSources by following movement edges forward.
 
             Replaces the old per-component subgraph + reverse() + DFS: the union of the
@@ -73,18 +79,18 @@ class MotionCheck(object):
                     lvStack.append(u)
         return svSeen
 
-    def find_stops(self):
+    def find_stops(self) -> Set[IntVector2D]:
         """ find all the stopped agents as a set of rc position nodes
             A stopped agent is a self-loop on a cell node.
         """
         return self.find_stops2()
 
-    def find_stops2(self):
+    def find_stops2(self) -> Set[IntVector2D]:
         """ find stopped agents: the self-loops, ie cells whose successor is themselves
         """
         return { u for u, v in self.succ.items() if u == v }
 
-    def find_stop_preds(self, svStops=None):
+    def find_stop_preds(self, svStops: Optional[Set[IntVector2D]] = None) -> Set[IntVector2D]:
 
         if svStops is None:
             svStops = self.find_stops2()
@@ -92,11 +98,11 @@ class MotionCheck(object):
         # Everything that chains back from a stopped agent is blocked by it.
         return self._reverse_reachable(svStops)
 
-    def find_swaps(self):
+    def find_swaps(self) -> Set[IntVector2D]:
         """ find all the swap conflicts where two agents are trying to exchange places.
             These are the 2-cycles: u wants v's cell and v wants u's.
         """
-        svSwaps = set()
+        svSwaps: Set[IntVector2D] = set()
         for u, v in self.succ.items():
             if u != v and self.succ.get(v) == u:
                 svSwaps.add(u)
@@ -133,8 +139,9 @@ class MotionCheck(object):
                 else:
                     self.colors[v] = "magenta"
 
-                # predecessors of a contended cell
-                diAgCell = {self.agent_at.get(vPred): vPred for vPred in dPred}
+                # predecessors of a contended cell. Every predecessor is a cell some agent is
+                # departing from (only such cells get an out-edge), so agent_at always has it.
+                diAgCell = {self.agent_at[vPred]: vPred for vPred in dPred}
 
                 # remove the agent with the lowest index, who wins
                 iAgWinner = min(diAgCell)
@@ -145,7 +152,7 @@ class MotionCheck(object):
                     for vPred in self._reverse_reachable([vLoser]):
                         self.colors[vPred] = "red"
 
-    def check_motion(self, iAgent, rcPos):
+    def check_motion(self, iAgent: int, rcPos: Optional[IntVector2D]) -> Tuple[bool, IntVector2D]:
         """ If agent position is None, we use a dummy position of (-1, iAgent)
         """
 

@@ -1,9 +1,9 @@
 """Malfunction generators for rail systems"""
 
-from typing import Callable, NamedTuple, Optional, Tuple
+from typing import Callable, Dict, NamedTuple, Optional, Tuple
 
 import numpy as np
-from numpy.random.mtrand import RandomState
+from numpy.random import Generator
 
 from flatland.envs.agent_utils import EnvAgent, RailAgentStatus
 from flatland.envs import persistence
@@ -11,7 +11,7 @@ from flatland.envs import persistence
 Malfunction = NamedTuple('Malfunction', [('num_broken_steps', int)])
 MalfunctionParameters = NamedTuple('MalfunctionParameters',
                                    [('malfunction_rate', float), ('min_duration', int), ('max_duration', int)])
-MalfunctionGenerator = Callable[[EnvAgent, RandomState, bool], Optional[Malfunction]]
+MalfunctionGenerator = Callable[[Optional[EnvAgent], Optional[Generator], bool], Optional[Malfunction]]
 MalfunctionProcessData = NamedTuple('MalfunctionProcessData',
                                     [('malfunction_rate', float), ('min_duration', int), ('max_duration', int)])
 
@@ -67,7 +67,8 @@ def malfunction_from_file(filename: str, load_from_package=None) -> Tuple[Malfun
         min_number_of_steps_broken = 0
         max_number_of_steps_broken = 0
 
-    def generator(agent: EnvAgent = None, np_random: RandomState = None, reset=False) -> Optional[Malfunction]:
+    def generator(agent: Optional[EnvAgent] = None, np_random: Optional[Generator] = None,
+                  reset: bool = False) -> Optional[Malfunction]:
         """
         Generate malfunctions for agents
         Parameters
@@ -84,10 +85,13 @@ def malfunction_from_file(filename: str, load_from_package=None) -> Tuple[Malfun
         if reset:
             return Malfunction(0)
 
+        # agent and np_random are only optional for the reset call above.
+        assert agent is not None and np_random is not None
+
         if agent.malfunction_data['malfunction'] < 1:
             if np_random.random() < _malfunction_prob(mean_malfunction_rate):
-                num_broken_steps = np_random.integers(min_number_of_steps_broken,
-                                                     max_number_of_steps_broken + 1) + 1
+                num_broken_steps = int(np_random.integers(min_number_of_steps_broken,
+                                                         max_number_of_steps_broken + 1)) + 1
                 return Malfunction(num_broken_steps)
         return Malfunction(0)
 
@@ -115,7 +119,8 @@ def malfunction_from_params(parameters: MalfunctionParameters) -> Tuple[Malfunct
     min_number_of_steps_broken = parameters.min_duration
     max_number_of_steps_broken = parameters.max_duration
 
-    def generator(agent: EnvAgent = None, np_random: RandomState = None, reset=False) -> Optional[Malfunction]:
+    def generator(agent: Optional[EnvAgent] = None, np_random: Optional[Generator] = None,
+                  reset: bool = False) -> Optional[Malfunction]:
         """
         Generate malfunctions for agents
         Parameters
@@ -132,10 +137,13 @@ def malfunction_from_params(parameters: MalfunctionParameters) -> Tuple[Malfunct
         if reset:
             return Malfunction(0)
 
+        # agent and np_random are only optional for the reset call above.
+        assert agent is not None and np_random is not None
+
         if agent.malfunction_data['malfunction'] < 1:
             if np_random.random() < _malfunction_prob(mean_malfunction_rate):
-                num_broken_steps = np_random.integers(min_number_of_steps_broken,
-                                                     max_number_of_steps_broken + 1) + 1
+                num_broken_steps = int(np_random.integers(min_number_of_steps_broken,
+                                                         max_number_of_steps_broken + 1)) + 1
                 return Malfunction(num_broken_steps)
         return Malfunction(0)
 
@@ -149,16 +157,20 @@ class ParamMalfunctionGen(object):
         self.min_number_of_steps_broken = parameters.min_duration
         self.max_number_of_steps_broken = parameters.max_duration
 
-    def generate(self, agent: EnvAgent = None, np_random: RandomState = None, reset=False) -> Optional[Malfunction]:
-      
+    def generate(self, agent: Optional[EnvAgent] = None, np_random: Optional[Generator] = None,
+                 reset: bool = False) -> Optional[Malfunction]:
+
         # Dummy reset function as we don't implement specific seeding here
         if reset:
             return Malfunction(0)
 
+        # agent and np_random are only optional for the reset call above.
+        assert agent is not None and np_random is not None
+
         if agent.malfunction_data['malfunction'] < 1:
             if np_random.random() < _malfunction_prob(self.mean_malfunction_rate):
-                num_broken_steps = np_random.integers(self.min_number_of_steps_broken,
-                                                     self.max_number_of_steps_broken + 1) + 1
+                num_broken_steps = int(np_random.integers(self.min_number_of_steps_broken,
+                                                          self.max_number_of_steps_broken + 1)) + 1
                 return Malfunction(num_broken_steps)
         return Malfunction(0)
 
@@ -175,7 +187,8 @@ class NoMalfunctionGen(ParamMalfunctionGen):
         self.min_number_of_steps_broken = 0
         self.max_number_of_steps_broken = 0
 
-    def generate(self, agent: EnvAgent = None, np_random: RandomState = None, reset=False) -> Optional[Malfunction]:
+    def generate(self, agent: Optional[EnvAgent] = None, np_random: Optional[Generator] = None,
+                 reset: bool = False) -> Optional[Malfunction]:
         return Malfunction(0)
 
     
@@ -200,7 +213,8 @@ def no_malfunction_generator() -> Tuple[MalfunctionGenerator, MalfunctionProcess
     min_number_of_steps_broken = 0
     max_number_of_steps_broken = 0
 
-    def generator(agent: EnvAgent = None, np_random: RandomState = None, reset=False) -> Optional[Malfunction]:
+    def generator(agent: Optional[EnvAgent] = None, np_random: Optional[Generator] = None,
+                  reset: bool = False) -> Optional[Malfunction]:
         return Malfunction(0)
 
     return generator, MalfunctionProcessData(mean_malfunction_rate, min_number_of_steps_broken,
@@ -233,20 +247,22 @@ def single_malfunction_generator(earlierst_malfunction: int, malfunction_duratio
     global_nr_malfunctions = 0
 
     # Malfunction calls per agent
-    malfunction_calls = dict()
+    malfunction_calls: Dict[int, int] = dict()
 
-    def generator(agent: EnvAgent = None, np_random: RandomState = None, reset=False) -> Optional[Malfunction]:
+    def generator(agent: Optional[EnvAgent] = None, np_random: Optional[Generator] = None,
+                  reset: bool = False) -> Optional[Malfunction]:
         # We use the global variable to assure only a single malfunction in the env
         nonlocal global_nr_malfunctions
         nonlocal malfunction_calls
 
         # Reset malfunciton generator
         if reset:
-            nonlocal global_nr_malfunctions
-            nonlocal malfunction_calls
             global_nr_malfunctions = 0
             malfunction_calls = dict()
             return Malfunction(0)
+
+        # agent is only optional for the reset call above.
+        assert agent is not None
 
         # No more malfunctions if we already had one, ignore all updates
         if global_nr_malfunctions > 0:

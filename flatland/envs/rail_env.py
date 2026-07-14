@@ -37,18 +37,18 @@ from flatland.envs.observations import GlobalObsForRailEnv
 
 
 # Adrian Egli performance fix (the fast methods brings more than 50%)
-def fast_isclose(a, b, rtol):
+def fast_isclose(a: float, b: float, rtol: float) -> bool:
     return (a < (b + rtol)) or (a < (b - rtol))
 
 
-def fast_clip(position: (int, int), min_value: (int, int), max_value: (int, int)) -> bool:
+def fast_clip(position: IntVector2D, min_value: IntVector2D, max_value: IntVector2D) -> IntVector2D:
     return (
         max(min_value[0], min(position[0], max_value[0])),
         max(min_value[1], min(position[1], max_value[1]))
     )
 
 
-def fast_argmax(possible_transitions: (int, int, int, int)) -> bool:
+def fast_argmax(possible_transitions: Tuple[int, int, int, int]) -> int:
     if possible_transitions[0] == 1:
         return 0
     if possible_transitions[1] == 1:
@@ -58,11 +58,11 @@ def fast_argmax(possible_transitions: (int, int, int, int)) -> bool:
     return 3
 
 
-def fast_position_equal(pos_1: (int, int), pos_2: (int, int)) -> bool:
+def fast_position_equal(pos_1: IntVector2D, pos_2: IntVector2D) -> bool:
     return pos_1[0] == pos_2[0] and pos_1[1] == pos_2[1]
 
 
-def fast_count_nonzero(possible_transitions: (int, int, int, int)):
+def fast_count_nonzero(possible_transitions: Tuple[int, int, int, int]) -> int:
     return possible_transitions[0] + possible_transitions[1] + possible_transitions[2] + possible_transitions[3]
 
 
@@ -152,18 +152,19 @@ class RailEnv(Environment):
     start_penalty = 0  # penalty for starting a stopped agent
 
     def __init__(self,
-                 width,
-                 height,
-                 rail_generator=None,
-                 schedule_generator=None,  # : sched_gen.ScheduleGenerator = sched_gen.random_schedule_generator(),
-                 number_of_agents=1,
+                 width: int,
+                 height: int,
+                 rail_generator: Optional[rail_gen.RailGenerator] = None,
+                 schedule_generator: Optional[sched_gen.ScheduleGenerator] = None,
+                 number_of_agents: int = 1,
                  obs_builder_object: ObservationBuilder = GlobalObsForRailEnv(),
-                 malfunction_generator_and_process_data=None,  # mal_gen.no_malfunction_generator(),
-                 malfunction_generator=None,
-                 remove_agents_at_target=True,
-                 random_seed=1,
-                 record_steps=False,
-                 close_following=True
+                 malfunction_generator_and_process_data: Optional[
+                     Tuple[mal_gen.MalfunctionGenerator, mal_gen.MalfunctionProcessData]] = None,
+                 malfunction_generator: Optional[mal_gen.ParamMalfunctionGen] = None,
+                 remove_agents_at_target: bool = True,
+                 random_seed: Optional[int] = 1,
+                 record_steps: bool = False,
+                 close_following: bool = True
                  ):
         """
         Environment init.
@@ -272,14 +273,16 @@ class RailEnv(Environment):
         self.close_following = close_following  # use close following logic
         self.motionCheck = ac.MotionCheck()
 
-    def _seed(self, seed=None):
+    def _seed(self, seed: Optional[int] = None) -> List[int]:
         # Same construction gym/gymnasium's seeding.np_random used: a PCG64 Generator
         # from a SeedSequence, whose entropy is the seed actually applied when seed is None.
         seed_seq = np.random.SeedSequence(seed)
-        self.np_random = np.random.default_rng(seed_seq)
-        seed = seed_seq.entropy
-        random.seed(seed)
-        return [seed]
+        self.np_random: np.random.Generator = np.random.default_rng(seed_seq)
+        # SeedSequence.entropy is a sequence only when a sequence was passed in; we only ever pass an int or None.
+        entropy = seed_seq.entropy
+        assert isinstance(entropy, int)
+        random.seed(entropy)
+        return [entropy]
 
     # no more agent_handles
     def get_agent_handles(self):
@@ -326,7 +329,7 @@ class RailEnv(Environment):
                                                                     rtol=1e-03)))
 
     def reset(self, regenerate_rail: bool = True, regenerate_schedule: bool = True, activate_agents: bool = False,
-              random_seed: bool = None) -> Tuple[Dict, Dict]:
+              random_seed: Optional[int] = None) -> Tuple[Dict, Dict]:
         """
         reset(regenerate_rail, regenerate_schedule, activate_agents, random_seed)
 
@@ -340,7 +343,7 @@ class RailEnv(Environment):
             regenerate the schedule and the static agents
         activate_agents : bool, optional
             activate the agents
-        random_seed : bool, optional
+        random_seed : int, optional
             random seed for environment
 
         Returns
@@ -354,17 +357,12 @@ class RailEnv(Environment):
         if random_seed:
             self._seed(random_seed)
 
-        optionals = {}
+        optionals: Optional[Dict] = {}
         if regenerate_rail or self.rail is None:
 
-            if "__call__" in dir(self.rail_generator):
-                rail, optionals = self.rail_generator(
-                    self.width, self.height, self.number_of_agents, self.num_resets, self.np_random)
-            elif "generate" in dir(self.rail_generator):
-                rail, optionals = self.rail_generator.generate(
-                    self.width, self.height, self.number_of_agents, self.num_resets, self.np_random)
-            else:
-                raise ValueError("Could not invoke __call__ or generate on rail_generator")
+            # both plain generator functions and RailGen objects (whose __call__ delegates to generate) are callable
+            rail, optionals = self.rail_generator(
+                self.width, self.height, self.number_of_agents, self.num_resets, self.np_random)
 
             self.rail = rail
             self.height, self.width = self.rail.grid.shape
@@ -419,10 +417,12 @@ class RailEnv(Environment):
         self.distance_map.reset(self.agents, self.rail)
 
         # Reset the malfunction generator
-        if hasattr(self.malfunction_generator, "generate"):
-            self.malfunction_generator.generate(reset=True)
+        malfunction_generator = self.malfunction_generator
+        if isinstance(malfunction_generator, mal_gen.ParamMalfunctionGen):
+            malfunction_generator.generate(reset=True)
         else:
-            self.malfunction_generator(reset=True)
+            # mal_gen.MalfunctionGenerator is a Callable alias, so its arguments have to be passed positionally
+            malfunction_generator(None, None, True)
 
         # Empty the episode store of agent positions
         self.cur_episode = []
@@ -473,10 +473,13 @@ class RailEnv(Environment):
 
         """
 
-        if hasattr(self.malfunction_generator, "generate"):
-            malfunction: mal_gen.Malfunction = self.malfunction_generator.generate(agent, self.np_random)
+        malfunction_generator = self.malfunction_generator
+        if isinstance(malfunction_generator, mal_gen.ParamMalfunctionGen):
+            malfunction = malfunction_generator.generate(agent, self.np_random)
         else:
-            malfunction: mal_gen.Malfunction = self.malfunction_generator(agent, self.np_random)
+            # mal_gen.MalfunctionGenerator is a Callable alias, so its arguments have to be passed positionally
+            malfunction = malfunction_generator(agent, self.np_random, False)
+        assert malfunction is not None, "malfunction generators always return a Malfunction"
 
         if malfunction.num_broken_steps > 0:
             agent.malfunction_data['malfunction'] = malfunction.num_broken_steps
@@ -485,13 +488,13 @@ class RailEnv(Environment):
 
         return
 
-    def step(self, action_dict_: Dict[int, RailEnvActions]):
+    def step(self, action_dict: Dict[int, RailEnvActions]):
         """
         Updates rewards for the agents at a step.
 
         Parameters
         ----------
-        action_dict_ : Dict[int,RailEnvActions]
+        action_dict : Dict[int,RailEnvActions]
 
         """
         self._elapsed_steps += 1
@@ -536,7 +539,7 @@ class RailEnv(Environment):
                     self._break_agent(agent)
 
                 # Perform step on the agent
-                self._step_agent(i_agent, action_dict_.get(i_agent))
+                self._step_agent(i_agent, action_dict.get(i_agent))
 
                 # manage the boolean flag to check if all agents are indeed done (or done_removed)
                 have_all_agents_ended &= (agent.status in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED])
@@ -561,7 +564,7 @@ class RailEnv(Environment):
                     self._break_agent(agent)
 
                 # Perform step on the agent
-                self._step_agent_cf(i_agent, action_dict_.get(i_agent))
+                self._step_agent_cf(i_agent, action_dict.get(i_agent))
 
             # second loop: check for collisions / conflicts
             self.motionCheck.find_conflicts()
@@ -591,7 +594,7 @@ class RailEnv(Environment):
             for i_agent in range(self.get_num_agents()):
                 self.dones[i_agent] = True
         if self.record_steps:
-            self.record_timestep(action_dict_)
+            self.record_timestep(action_dict)
 
         return self._get_observations(), self.rewards_dict, self.dones, info_dict
 
@@ -843,6 +846,7 @@ class RailEnv(Environment):
                 self.motionCheck.addAgent(i_agent, agent.position, agent.position)
 
     def _step_agent2_cf(self, i_agent):
+        assert self.rail is not None, "rail is only None before the first reset()"
         agent = self.agents[i_agent]
 
         if agent.status in [RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED]:
@@ -963,6 +967,8 @@ class RailEnv(Environment):
 
 
         """
+        assert self.rail is not None, "rail is only None before the first reset()"
+        assert agent.position is not None, "the agent must be on the grid to check an action"
         # compute number of possible transitions in the current
         # cell used to check for invalid actions
         new_direction, transition_valid = self.check_action(agent, action)
@@ -971,7 +977,7 @@ class RailEnv(Environment):
         new_cell_valid = (
             fast_position_equal(  # Check the new position is still in the grid
                 new_position,
-                fast_clip(new_position, [0, 0], [self.height - 1, self.width - 1]))
+                fast_clip(new_position, (0, 0), (self.height - 1, self.width - 1)))
             and  # check the new position has some transitions (ie is not an empty cell)
             self.rail.get_full_transitions(*new_position) > 0)
 
@@ -1026,7 +1032,7 @@ class RailEnv(Environment):
         """
         return self.agent_positions[position] == -1
 
-    def check_action(self, agent: EnvAgent, action: RailEnvActions):
+    def check_action(self, agent: EnvAgent, action: RailEnvActions) -> Tuple[Grid4TransitionsEnum, Optional[bool]]:
         """
 
         Parameters
@@ -1041,6 +1047,8 @@ class RailEnv(Environment):
 
 
         """
+        assert self.rail is not None, "rail is only None before the first reset()"
+        assert agent.position is not None, "the agent must be on the grid to check an action"
         transition_valid = None
         possible_transitions = self.rail.get_transitions(*agent.position, agent.direction)
         num_transitions = fast_count_nonzero(possible_transitions)
@@ -1056,13 +1064,13 @@ class RailEnv(Environment):
             if num_transitions <= 1:
                 transition_valid = False
 
-        new_direction %= 4
+        new_direction = Grid4TransitionsEnum(new_direction % 4)
 
         if action == RailEnvActions.MOVE_FORWARD and num_transitions == 1:
             # - dead-end, straight line or curved line;
             # new_direction will be the only valid transition
             # - take only available transition
-            new_direction = fast_argmax(possible_transitions)
+            new_direction = Grid4TransitionsEnum(fast_argmax(possible_transitions))
             transition_valid = True
         return new_direction, transition_valid
 
@@ -1091,9 +1099,10 @@ class RailEnv(Environment):
         -------
         List[int]
         """
+        assert self.rail is not None, "rail is only None before the first reset()"
         return Grid4Transitions.get_entry_directions(self.rail.get_full_transitions(row, col))
 
-    def read_deadlines(self, filename):
+    def read_deadlines(self, filename) -> List[Optional[int]]:
         try:
             "reading deadline..."
             with open(filename, 'rb') as handle:
@@ -1102,16 +1111,17 @@ class RailEnv(Environment):
         except OSError:
             print("Could not open/read deadlines file...")
             exit(1)
-    
-    def save_deadlines(self, filename: str, deadlines: List[int]):
+
+    def save_deadlines(self, filename: str, deadlines: List[Optional[int]]):
         with open(filename + ".ddl", 'wb') as handle:
             pickle.dump(deadlines, handle, protocol=pickle.HIGHEST_PROTOCOL)
         print("successfully saved deadlines...")
 
-    def generate_deadlines(self, deadline_scale, group_size = 10, malfunction_scale = 1):
+    def generate_deadlines(self, deadline_scale: float, group_size: int = 10,
+                           malfunction_scale: float = 1) -> List[Optional[int]]:
         # TODO: seed generation
         num_agents = len(self.agents)
-        deadlines = [None] * num_agents
+        deadlines: List[Optional[int]] = [None] * num_agents
         d_map = self.distance_map.get()
         shuffled = self.agents[:]
         random.shuffle(shuffled)
@@ -1124,7 +1134,7 @@ class RailEnv(Environment):
             deadlines[agent.handle] = deadline
         return deadlines
     
-    def set_deadlines(self, deadlines: List[int]):
+    def set_deadlines(self, deadlines: List[Optional[int]]):
         assert len(deadlines) == len(self.agents), "Number of deadlines does not match number of agents!"
         for i in range(len(self.agents)):
             self.agents[i].deadline = deadlines[i]

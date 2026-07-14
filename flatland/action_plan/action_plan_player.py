@@ -22,9 +22,12 @@ class ControllerFromTrainrunsReplayer():
         call_back
             Called before/after each step() call. The env is passed to it.
         """
+        max_episode_steps = env._max_episode_steps
+        assert max_episode_steps is not None, "env must be reset before replaying an action plan."
+
         call_back(env)
         i = 0
-        while not env.dones['__all__'] and i <= env._max_episode_steps:
+        while not env.dones['__all__'] and i <= max_episode_steps:
             for agent_id, agent in enumerate(env.agents):
                 waypoint: Waypoint = ctl.get_waypoint_before_or_at_step(agent_id, i)
                 assert agent.position == waypoint.position, \

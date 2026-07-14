@@ -8,23 +8,36 @@ The ObservationBuilder-derived custom classes implement 2 functions, reset() and
 multi-agent environments.
 
 """
-from typing import Optional, List
+from typing import Dict, Generic, Optional, List, TypeVar, Union, cast
 
 import numpy as np
 
 from flatland.core.env import Environment
 
+#: Type of the observation returned by an :class:`ObservationBuilder` for a single agent.
+ObservationType = TypeVar("ObservationType")
+#: Environment the builder is attached to. Defaults to the generic :class:`Environment`, so
+#: builders that do not care (e.g. DummyObservationBuilder) need not spell it out; the
+#: RailEnv-specific builders subscript it to get `self.env` typed as `RailEnv`.
+#: Covariant so that a RailEnv-specific builder is still accepted wherever a plain
+#: ObservationBuilder is expected (e.g. RailEnv's obs_builder_object parameter).
+EnvType = TypeVar("EnvType", bound=Environment, covariant=True, default=Environment)
 
-class ObservationBuilder:
+
+class ObservationBuilder(Generic[ObservationType, EnvType]):
     """
     ObservationBuilder base class.
     """
 
-    def __init__(self):
-        self.env = None
+    #: Bound by :meth:`set_env` when the builder is attached to an environment.
+    #: Reading it before then is a programming error.
+    env: EnvType
 
     def set_env(self, env: Environment):
-        self.env: Environment = env
+        # EnvType is covariant (so RailEnv-specific builders remain usable wherever a plain
+        # ObservationBuilder is expected), which rules it out as a parameter type. The env a
+        # builder is attached to is always the one it declared, so narrowing here is sound.
+        self.env = cast(EnvType, env)
 
     def reset(self):
         """
@@ -32,7 +45,7 @@ class ObservationBuilder:
         """
         raise NotImplementedError()
 
-    def get_many(self, handles: Optional[List[int]] = None):
+    def get_many(self, handles: Optional[List[int]] = None) -> Union[Dict[int, ObservationType], ObservationType]:
         """
         Called whenever an observation has to be computed for the `env` environment, for each agent with handle
         in the `handles` list.
@@ -46,16 +59,17 @@ class ObservationBuilder:
         -------
         function
             A dictionary of observation structures, specific to the corresponding environment, with handles from
-            `handles` as keys.
+            `handles` as keys. Builders which do not compute per-agent observations (such as
+            :class:`DummyObservationBuilder`) may instead return a single observation for the whole environment.
         """
-        observations = {}
+        observations: Dict[int, ObservationType] = {}
         if handles is None:
             handles = []
         for h in handles:
             observations[h] = self.get(h)
         return observations
 
-    def get(self, handle: int = 0):
+    def get(self, handle: int = 0) -> ObservationType:
         """
         Called whenever an observation has to be computed for the `env` environment, possibly
         for each agent independently (agent id `handle`).
@@ -79,7 +93,7 @@ class ObservationBuilder:
         return direction
 
 
-class DummyObservationBuilder(ObservationBuilder):
+class DummyObservationBuilder(ObservationBuilder[bool]):
     """
     DummyObservationBuilder class which returns dummy observations
     This is used in the evaluation service

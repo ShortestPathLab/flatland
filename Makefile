@@ -56,8 +56,8 @@ sync: ## create/update the uv-managed virtualenv from uv.lock
 lint: ## check style with ruff
 	uv run ruff check flatland tests examples benchmarks
 
-typecheck: ## check types with pyright
-	uv run pyright
+typecheck: ## check types with ty
+	uv run ty check
 
 format: ## auto-format and apply safe lint fixes with ruff
 	uv run ruff check --fix flatland tests examples benchmarks

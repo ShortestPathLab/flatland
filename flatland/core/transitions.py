@@ -4,6 +4,7 @@ derived GridTransitions class, which allows for the specification of
 possible transitions over a 2D grid.
 """
 from enum import IntEnum
+from typing import Type
 
 
 class Transitions:
@@ -131,5 +132,5 @@ class Transitions:
         """
         raise NotImplementedError()
 
-    def get_direction_enum(self) -> IntEnum:
+    def get_direction_enum(self) -> Type[IntEnum]:
         raise NotImplementedError()

@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw, ImageFont
 from numpy import array
 from importlib.resources import files as resource_files
 
-from flatland.utils.graphics_layer import GraphicsLayer
+from flatland.utils.graphics_layer import ColorSpec, GraphicsLayer
 
 from flatland.core.grid.rail_env_grid import RailEnvTransitions  # noqa: E402
 
@@ -126,25 +126,28 @@ class PILGL(GraphicsLayer):
     def get_agent_color(self, iAgent):
         return self.agent_colors[iAgent % self.n_agent_colors]
 
-    def plot(self, gX, gY, color=None, linewidth=3, layer=RAIL_LAYER, opacity=255, **kwargs):
+    def plot(self, gX, gY, color: ColorSpec = None, linewidth=3, layer=RAIL_LAYER, opacity=255, **kwargs):
         """ Draw a line joining the points in gX, GY - each an"""
-        color = self.adapt_color(color)
-        if len(color) == 3:
-            color += (opacity,)
-        elif len(color) == 4:
-            color = color[:3] + (opacity,)
+        fill = self.adapt_color(color)
+        # A colour name is handed to PIL as-is; only RGB(A) tuples take the opacity.
+        if not isinstance(fill, str):
+            if len(fill) == 3:
+                fill = fill + (opacity,)
+            elif len(fill) == 4:
+                fill = fill[:3] + (opacity,)
         gPoints = np.stack([array(gX), -array(gY)]).T * self.nPixCell
         gPoints = list(gPoints.ravel())
         # the width here was self.linewidth - not really sure of the implications
-        self.draws[layer].line(gPoints, fill=color, width=linewidth)
+        self.draws[layer].line(gPoints, fill=fill, width=linewidth)
         self.dirty_layers.add(layer)
 
-    def scatter(self, gX, gY, color=None, marker="o", s=50, layer=RAIL_LAYER, opacity=255, *args, **kwargs):
-        color = self.adapt_color(color)
+    def scatter(self, gX, gY, color: ColorSpec = None, marker="o", s=50, layer=RAIL_LAYER, opacity=255,
+                *args, **kwargs):
+        fill = self.adapt_color(color)
         r = np.sqrt(s)
         gPoints = np.stack([np.atleast_1d(gX), -np.atleast_1d(gY)]).T * self.nPixCell
         for x, y in gPoints:
-            self.draws[layer].rectangle([(x - r, y - r), (x + r, y + r)], fill=color, outline=color)
+            self.draws[layer].rectangle([(x - r, y - r), (x + r, y + r)], fill=fill, outline=fill)
         self.dirty_layers.add(layer)
 
     def scale_to_cell(self, pil_img):
@@ -188,8 +191,8 @@ class PILGL(GraphicsLayer):
         self.dirty_layers.add(layer)
 
     def text_rowcol(self, rcTopLeft, strText, layer=AGENT_LAYER):
-        xyPixLeftTop = tuple((array(rcTopLeft) * self.nPixCell)[[1, 0]])
-        self.text(*xyPixLeftTop, strText, layer)
+        xPx, yPx = (array(rcTopLeft) * self.nPixCell)[[1, 0]]
+        self.text(xPx, yPx, strText, layer)
 
     def prettify(self, *args, **kwargs):
         pass
@@ -224,7 +227,7 @@ class PILGL(GraphicsLayer):
         # rather than aliasing the base layer.
         return img if composited else img.copy()
 
-    def get_image(self):
+    def get_image(self) -> np.ndarray:
         """ return a blended / alpha composited image composed of all the layers,
             with layer 0 at the "back".
         """
@@ -313,8 +316,6 @@ class PILSVG(PILGL):
         self.clear_agents()
 
     def clear_agents(self):
-        for wAgent in self.lwAgents:
-            self.layout.removeWidget(wAgent)
         self.lwAgents = []
         self.agents_prev = []
 
@@ -455,8 +456,8 @@ class PILSVG(PILGL):
 
         # Load the target files (which have rails and transitions of their own)
         # They are indexed by (binTrans, iAgent), ie a tuple of the binary transition and the agent index
-        pil_target_files_org = self.load_pngs(target_files, rotate=False, agent_colors=self.agent_colors)
-        pil_target_files = self.load_pngs(target_files, rotate=False, agent_colors=self.agent_colors,
+        pil_target_files_org = self.load_pngs(target_files, rotate=False, agent_colors=True)
+        pil_target_files = self.load_pngs(target_files, rotate=False, agent_colors=True,
                                           background_image="Background_rail.png",
                                           whitefilter="Background_white_filter.png")
 
@@ -474,7 +475,11 @@ class PILSVG(PILGL):
         self.pil_rail = {**pil_rail_files, **pil_target_files}
         self.pil_rail_org = {**pil_rail_files_org, **pil_target_files_org}
 
-    def load_pngs(self, file_directory, rotate=False, agent_colors=False, background_image=None, whitefilter=None):
+    def load_pngs(self, file_directory, rotate=False, agent_colors: bool = False, background_image=None,
+                  whitefilter=None):
+        """ agent_colors: if True, store one recolored variant per agent color
+            (keyed by (binary_trans, color_idx)) instead of the base image.
+        """
         pil = {}
 
         transitions = RailEnvTransitions()

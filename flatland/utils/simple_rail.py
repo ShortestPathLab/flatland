@@ -1,12 +1,13 @@
 from typing import Tuple
 
 import numpy as np
+import numpy.typing as npt
 
 from flatland.core.grid.rail_env_grid import RailEnvTransitions
 from flatland.core.transition_map import GridTransitionMap
 
 
-def make_simple_rail() -> Tuple[GridTransitionMap, np.array]:
+def make_simple_rail() -> Tuple[GridTransitionMap, npt.NDArray[np.uint16]]:
     # We instantiate a very simple rail network on a 7x10 grid:
     # Note that that cells have invalid RailEnvTransitions!
     #        |
@@ -45,7 +46,7 @@ def make_simple_rail() -> Tuple[GridTransitionMap, np.array]:
     return rail, rail_map
 
 
-def make_disconnected_simple_rail() -> Tuple[GridTransitionMap, np.array]:
+def make_disconnected_simple_rail() -> Tuple[GridTransitionMap, npt.NDArray[np.uint16]]:
     # We instantiate a very simple rail network on a 7x10 grid:
     # Note that that cells have invalid RailEnvTransitions!
     #        |
@@ -85,7 +86,7 @@ def make_disconnected_simple_rail() -> Tuple[GridTransitionMap, np.array]:
     return rail, rail_map
 
 
-def make_simple_rail2() -> Tuple[GridTransitionMap, np.array]:
+def make_simple_rail2() -> Tuple[GridTransitionMap, npt.NDArray[np.uint16]]:
     # We instantiate a very simple rail network on a 7x10 grid:
     #        |
     #        |
@@ -122,7 +123,7 @@ def make_simple_rail2() -> Tuple[GridTransitionMap, np.array]:
     return rail, rail_map
 
 
-def make_simple_rail_unconnected() -> Tuple[GridTransitionMap, np.array]:
+def make_simple_rail_unconnected() -> Tuple[GridTransitionMap, npt.NDArray[np.uint16]]:
     # We instantiate a very simple rail network on a 7x10 grid:
     # Note that that cells have invalid RailEnvTransitions!
     #        |
@@ -160,7 +161,7 @@ def make_simple_rail_unconnected() -> Tuple[GridTransitionMap, np.array]:
     return rail, rail_map
 
 
-def make_simple_rail_with_alternatives() -> Tuple[GridTransitionMap, np.array]:
+def make_simple_rail_with_alternatives() -> Tuple[GridTransitionMap, npt.NDArray[np.uint16]]:
     # We instantiate a very simple rail network on a 7x10 grid:
     #  0 1 2 3 4 5 6 7 8 9  10
     # 0        /-------------\
@@ -200,7 +201,7 @@ def make_simple_rail_with_alternatives() -> Tuple[GridTransitionMap, np.array]:
     return rail, rail_map
 
 
-def make_invalid_simple_rail() -> Tuple[GridTransitionMap, np.array]:
+def make_invalid_simple_rail() -> Tuple[GridTransitionMap, npt.NDArray[np.uint16]]:
     # We instantiate a very simple rail network on a 7x10 grid:
     #        |
     #        |

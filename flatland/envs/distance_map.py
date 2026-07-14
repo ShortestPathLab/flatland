@@ -4,6 +4,7 @@ from typing import List, Optional
 import numpy as np
 
 from flatland.core.grid.grid4_utils import get_new_position
+from flatland.core.grid.grid_utils import IntVector2D
 from flatland.core.transition_map import GridTransitionMap
 from flatland.envs.agent_utils import EnvAgent
 
@@ -12,8 +13,8 @@ class DistanceMap:
     def __init__(self, agents: List[EnvAgent], env_height: int, env_width: int):
         self.env_height = env_height
         self.env_width = env_width
-        self.distance_map = None
-        self.agents_previous_computation = None
+        self.distance_map: Optional[np.ndarray] = None
+        self.agents_previous_computation: Optional[List[EnvAgent]] = None
         self.reset_was_called = False
         self.agents: List[EnvAgent] = agents
         self.rail: Optional[GridTransitionMap] = None
@@ -37,11 +38,14 @@ class DistanceMap:
                 compute_distance_map = False
 
             if compute_distance_map:
+                assert self.rail is not None, "reset() must be called before the distance map can be computed"
                 self._compute(self.agents, self.rail)
 
         elif self.distance_map is None:
+            assert self.rail is not None, "reset() must be called before the distance map can be computed"
             self._compute(self.agents, self.rail)
 
+        assert self.distance_map is not None
         return self.distance_map
 
     def reset(self, agents: List[EnvAgent], rail: GridTransitionMap):
@@ -78,11 +82,12 @@ class DistanceMap:
                     self.distance_map[computed_targets.index(agent.target), :, :, :])
             computed_targets.append(agent.target)
 
-    def _distance_map_walker(self, rail: GridTransitionMap, position, target_nr: int):
+    def _distance_map_walker(self, rail: GridTransitionMap, position: IntVector2D, target_nr: int):
         """
         Utility function to compute distance maps from each cell in the rail network (and each possible
         orientation within it) to each agent's target cell.
         """
+        assert self.distance_map is not None, "_compute() allocates the distance map before walking it"
         # Returns max distance to target, from the farthest away node, while filling in distance_map
         self.distance_map[target_nr, position[0], position[1], :] = 0
 
@@ -118,12 +123,13 @@ class DistanceMap:
 
         return max_distance
 
-    def _get_and_update_neighbors(self, rail: GridTransitionMap, position, target_nr, current_distance,
-                                  enforce_target_direction=-1):
+    def _get_and_update_neighbors(self, rail: GridTransitionMap, position: IntVector2D, target_nr: int,
+                                  current_distance: int, enforce_target_direction: int = -1):
         """
         Utility function used by _distance_map_walker to perform a BFS walk over the rail, filling in the
         minimum distances from each target cell.
         """
+        assert self.distance_map is not None, "_compute() allocates the distance map before walking it"
         neighbors = []
 
         possible_directions = [0, 1, 2, 3]

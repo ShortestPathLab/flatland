@@ -1,3 +1,5 @@
+from typing import Optional
+
 from flatland.core.env_observation_builder import ObservationBuilder
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
@@ -7,9 +9,9 @@ from flatland.envs.schedule_generators import schedule_from_file
 
 
 def load_flatland_environment_from_file(file_name: str,
-                                        load_from_package: str = None,
-                                        obs_builder_object: ObservationBuilder = None,
-                                        record_steps = False,
+                                        load_from_package: Optional[str] = None,
+                                        obs_builder_object: Optional[ObservationBuilder] = None,
+                                        record_steps: bool = False,
                                         ) -> RailEnv:
     """
     Parameters

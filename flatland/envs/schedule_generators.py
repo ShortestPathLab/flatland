@@ -6,7 +6,7 @@ import numpy as np
 from numpy.random import Generator
 
 from flatland.core.grid.grid4_utils import get_new_position
-from flatland.core.grid.grid_utils import IntVector2D, IntVector2DArray
+from flatland.core.grid.grid_utils import IntVector2DArray
 from flatland.core.transition_map import GridTransitionMap
 from flatland.envs.schedule_utils import Schedule
 from flatland.envs import persistence

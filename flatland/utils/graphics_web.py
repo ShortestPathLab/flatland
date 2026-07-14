@@ -87,7 +87,9 @@ def _try_open_native_window(url, title="Flatland", size=(400, 400)):
     deadline = time.monotonic() + NATIVE_STARTUP_GRACE
     while time.monotonic() < deadline:
         if proc.poll() is not None:
-            err = (proc.stderr.read() or b"").decode(errors="replace").strip()
+            # stderr is a pipe (see Popen above), but Popen.stderr is Optional.
+            raw = proc.stderr.read() if proc.stderr is not None else b""
+            err = (raw or b"").decode(errors="replace").strip()
             reason = (
                 err.splitlines()[-1] if err else f"exited with code {proc.returncode}"
             )

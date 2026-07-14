@@ -1,6 +1,7 @@
 import os
 import time
 from collections import deque
+from typing import Optional
 
 import ipywidgets
 import numpy as np
@@ -10,7 +11,10 @@ from ipywidgets import IntSlider, VBox, HBox, Checkbox, Output, Text, RadioButto
 from numpy import array
 
 import flatland.utils.rendertools as rt
+from flatland.core.grid.grid4 import Grid4TransitionsEnum
 from flatland.core.grid.grid4_utils import mirror
+from flatland.core.grid.grid_utils import IntVector2D, IntVector2DArray
+from flatland.core.transition_map import GridTransitionMap
 from flatland.envs.agent_utils import EnvAgent
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.rail_env import RailEnv
@@ -21,7 +25,7 @@ class EditorMVC(object):
     """ EditorMVC - a class to encompass and assemble the Jupyter Editor Model-View-Controller.
     """
 
-    def __init__(self, env=None, sGL="PIL", env_filename="temp.pkl"):
+    def __init__(self, env: Optional[RailEnv] = None, sGL: str = "PIL", env_filename: str = "temp.pkl"):
         """ Create an Editor MVC assembly around a railenv, or create one if None.
         """
         if env is None:
@@ -43,10 +47,14 @@ class View(object):
 
     # PILSVG, not WEB: the editor draws into its own notebook canvas widget via
     # get_image(), so it must not stand up a render server of its own.
-    def __init__(self, editor, sGL="PILSVG", screen_width=1200, screen_height=1200):
+    def __init__(self, editor: "EditorModel", sGL: str = "PILSVG", screen_width: int = 1200,
+                 screen_height: int = 1200):
         self.editor = self.model = editor
         self.sGL = sGL
         self.xyScreen = (screen_width, screen_height)
+        # assigned by EditorMVC as soon as the Controller exists, before any of the
+        # init_/event methods below (which all need it) are called.
+        self.controller: "Controller"
 
     def display(self):
         self.output_generator.clear_output()
@@ -225,13 +233,13 @@ class Controller(object):
     (this means the mouse drag path before it is interpreted as transitions)
     """
 
-    def __init__(self, model, view):
+    def __init__(self, model: "EditorModel", view: View):
         self.editor = self.model = model
         self.view = view
         self.q_events = deque()
         self.drawMode = "Draw"
 
-    def set_model(self, model):
+    def set_model(self, model: "EditorModel"):
         self.model = model
 
     def on_dom_event(self, event):
@@ -371,7 +379,7 @@ class Controller(object):
                 if agent is None:
                     continue
                 if agent_idx == self.model.selected_agent:
-                    agent.initial_direction = (agent.initial_direction + 1) % 4
+                    agent.initial_direction = Grid4TransitionsEnum((agent.initial_direction + 1) % 4)
                     agent.direction = agent.initial_direction
                     agent.old_direction = agent.direction
         self.model.redraw()
@@ -401,9 +409,6 @@ class Controller(object):
     def save_image(self, event):
         self.model.save_image()
 
-    def step(self, event):
-        self.model.step()
-
     def log(self, *args, **kwargs):
         if self.view is None:
             print(*args, **kwargs)
@@ -415,13 +420,16 @@ class Controller(object):
 
 
 class EditorModel(object):
-    def __init__(self, env, env_filename="temp.pkl"):
-        self.view = None
+    def __init__(self, env: RailEnv, env_filename: str = "temp.pkl"):
+        # None when the model is used headlessly, ie without an editor GUI (see env_edit_utils);
+        # EditorMVC attaches the View and the Controller straight after construction.
+        self.view: Optional[View] = None
+        self.controller: Controller
         self.env = env
         self.regen_size_width = 10
         self.regen_size_height = 10
 
-        self.lrcStroke = []
+        self.lrcStroke: IntVector2DArray = []
         self.iTransLast = -1
         self.gRCTrans = array([[-1, 0], [0, 1], [1, 0], [0, -1]])  # NESW in RC
 
@@ -431,15 +439,24 @@ class EditorModel(object):
         self.draw_mode = "Draw"
         self.env_filename = env_filename
         self.set_env(env)
-        self.selected_agent = None
+        self.selected_agent: Optional[int] = None
         self.thread = None
         self.save_image_count = 0
 
-    def set_env(self, env):
+    def set_env(self, env: RailEnv):
         """
         set a new env for the editor, used by load and regenerate.
         """
         self.env = env
+
+    @property
+    def rail(self) -> GridTransitionMap:
+        """ The env's rail, which is only None until the env has first been reset.
+            The editor always resets (or loads) its env before touching the rail.
+        """
+        rail = self.env.rail
+        assert rail is not None, "the editor requires an env which has been reset"
+        return rail
 
     def set_debug(self, debug):
         self.debug_bool = debug
@@ -537,7 +554,7 @@ class EditorModel(object):
 
         if len(lrcStroke) >= 2:
             # If the first cell in a stroke is empty, add a deadend to cell 0
-            if self.env.rail.get_full_transitions(*lrcStroke[0]) == 0:
+            if self.rail.get_full_transitions(*lrcStroke[0]) == 0:
                 self.mod_rail_2cells(lrcStroke, bAddRemove, iCellToMod=0)
 
         # Add transitions for groups of 3 cells
@@ -548,7 +565,7 @@ class EditorModel(object):
 
         # If final cell empty, insert deadend:
         if len(lrcStroke) == 2:
-            if self.env.rail.get_full_transitions(*lrcStroke[1]) == 0:
+            if self.rail.get_full_transitions(*lrcStroke[1]) == 0:
                 self.mod_rail_2cells(lrcStroke, bAddRemove, iCellToMod=1)
 
         #print("final:", lrcStroke)
@@ -593,16 +610,16 @@ class EditorModel(object):
             # Set the transition
             # If this transition spans 3 cells, it is not a deadend, so remove any deadends.
             # The user will need to resolve any conflicts.
-            self.env.rail.set_transition((*rcMiddle, liTrans[0]),
-                                         liTrans[1],
-                                         bAddRemove,
-                                         remove_deadends=not bDeadend)
+            self.rail.set_transition((*rcMiddle, liTrans[0]),
+                                     liTrans[1],
+                                     bAddRemove,
+                                     remove_deadends=not bDeadend)
 
             # Also set the reverse transition
             # use the reversed outbound transition for inbound
             # and the reversed inbound transition for outbound
-            self.env.rail.set_transition((*rcMiddle, mirror(liTrans[1])),
-                                         mirror(liTrans[0]), bAddRemove, remove_deadends=not bDeadend)
+            self.rail.set_transition((*rcMiddle, mirror(liTrans[1])),
+                                     mirror(liTrans[0]), bAddRemove, remove_deadends=not bDeadend)
 
         if bPop:
             lrcStroke.pop(0)  # remove the first cell in the stroke
@@ -636,26 +653,27 @@ class EditorModel(object):
             # The transition is going from cell 0 to cell 1.
             if iCellToMod == 0:
                 # if 0, reverse the transition, we need to be entering cell 0
-                self.env.rail.set_transition((*rcMod, mirror(liTrans[0])), liTrans[0], bAddRemove)
+                self.rail.set_transition((*rcMod, mirror(liTrans[0])), liTrans[0], bAddRemove)
             else:
                 # if 1, the transition is entering cell 1
-                self.env.rail.set_transition((*rcMod, liTrans[0]), mirror(liTrans[0]), bAddRemove)
+                self.rail.set_transition((*rcMod, liTrans[0]), mirror(liTrans[0]), bAddRemove)
 
         if bPop:
             lrcCells.pop(0)
 
     def redraw(self):
+        assert self.view is not None
         self.view.redraw()
 
     def clear(self):
-        self.env.rail.grid[:, :] = 0
+        self.rail.grid[:, :] = 0
         self.env.agents = []
 
         self.redraw()
 
-    def clear_cell(self, cell_row_col):
+    def clear_cell(self, cell_row_col: IntVector2D):
         self.debug_cell(cell_row_col)
-        self.env.rail.grid[cell_row_col[0], cell_row_col[1]] = 0
+        self.rail.grid[cell_row_col[0], cell_row_col[1]] = 0
         self.redraw()
 
     def reset(self, regenerate_schedule=False, nAgents=0):
@@ -670,6 +688,7 @@ class EditorModel(object):
         self.env_filename = filename
 
     def load(self):
+        assert self.view is not None
         if os.path.exists(self.env_filename):
             self.log("load file: ", self.env_filename)
             #self.env.load(self.env_filename)
@@ -695,11 +714,13 @@ class EditorModel(object):
         RailEnvPersister.save(self.env, self.env_filename)
 
     def save_image(self):
+        assert self.view is not None
         self.view.oRT.gl.save_image('frame_{:04d}.bmp'.format(self.save_image_count))
         self.save_image_count += 1
         self.view.redraw()
 
-    def regenerate(self, method=None, nAgents=0, env=None):
+    def regenerate(self, method: Optional[str] = None, nAgents: int = 0, env: Optional[RailEnv] = None):
+        assert self.view is not None
         self.log("Regenerate size",
                  self.regen_size_width,
                  self.regen_size_height)
@@ -729,7 +750,7 @@ class EditorModel(object):
     def set_regen_height(self, size):
         self.regen_size_height = size
 
-    def find_agent_at(self, cell_row_col):
+    def find_agent_at(self, cell_row_col: IntVector2D) -> Optional[int]:
         for agent_idx, agent in enumerate(self.env.agents):
             if agent.position is None:
                 rc_pos = agent.initial_position
@@ -739,13 +760,15 @@ class EditorModel(object):
                 return agent_idx
         return None
 
-    def click_agent(self, cell_row_col):
+    def click_agent(self, cell_row_col: IntVector2D):
         """ The user has clicked on a cell -
             * If there is an agent, select it
               * If that agent was already selected, then deselect it
             * If there is no agent selected, and no agent in the cell, create one
             * If there is an agent selected, and no agent in the cell, move the selected agent to the cell
         """
+
+        assert self.view is not None
 
         # Has the user clicked on an existing agent?
         agent_idx = self.find_agent_at(cell_row_col)
@@ -757,15 +780,16 @@ class EditorModel(object):
 
         # Defensive coding below - for cell_row_col to be a tuple, not a numpy array:
         # numpy array breaks various things when loading the env.
+        rc_pos: IntVector2D = (cell_row_col[0], cell_row_col[1])
 
         if agent_idx is None:
             # No
             if self.selected_agent is None:
                 # Create a new agent and select it.
-                agent = EnvAgent(initial_position=tuple(cell_row_col),
-                    initial_direction=0, 
-                    direction=0,
-                    target=tuple(cell_row_col), 
+                agent = EnvAgent(initial_position=rc_pos,
+                    initial_direction=Grid4TransitionsEnum.NORTH,
+                    direction=Grid4TransitionsEnum.NORTH,
+                    target=rc_pos,
                     moving=False,
                     )
                 self.selected_agent = self.env.add_agent(agent)
@@ -774,9 +798,9 @@ class EditorModel(object):
             else:
                 # Move the selected agent to this cell
                 agent = self.env.agents[self.selected_agent]
-                agent.initial_position = tuple(cell_row_col)
-                agent.position = tuple(cell_row_col)
-                agent.old_position = tuple(cell_row_col)
+                agent.initial_position = rc_pos
+                agent.position = rc_pos
+                agent.old_position = rc_pos
         else:
             # Yes
             # Have they clicked on the agent already selected?
@@ -789,15 +813,16 @@ class EditorModel(object):
 
         self.redraw()
 
-    def add_target(self, rc_cell):
+    def add_target(self, rc_cell: IntVector2D):
+        assert self.view is not None
         if self.selected_agent is not None:
-            self.env.agents[self.selected_agent].target = tuple(rc_cell)
+            self.env.agents[self.selected_agent].target = (rc_cell[0], rc_cell[1])
             self.view.oRT.update_background()
             self.redraw()
 
     def fix_env(self):
-        self.env.width = self.env.rail.width
-        self.env.height = self.env.rail.height
+        self.env.width = self.rail.width
+        self.env.height = self.rail.height
 
     def log(self, *args, **kwargs):
         if self.view is None:
@@ -809,8 +834,8 @@ class EditorModel(object):
         if self.debug_bool:
             self.log(*args, **kwargs)
 
-    def debug_cell(self, rc_cell):
-        binTrans = self.env.rail.get_full_transitions(*rc_cell)
+    def debug_cell(self, rc_cell: IntVector2D):
+        binTrans = self.rail.get_full_transitions(*rc_cell)
         sbinTrans = format(binTrans, "#018b")[2:]
         self.debug("cell ",
                    rc_cell,

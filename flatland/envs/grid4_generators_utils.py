@@ -5,6 +5,8 @@ Generator functions are functions that take width, height and num_resets as argu
 a GridTransitionMap object.
 """
 
+from typing import Optional
+
 import numpy as np
 
 from flatland.core.grid.grid4 import Grid4TransitionsEnum
@@ -19,7 +21,8 @@ def connect_rail_in_grid_map(grid_map: GridTransitionMap, start: IntVector2D, en
                              rail_trans: RailEnvTransitions,
                              a_star_distance_function: IntVector2DDistance = Vec2d.get_manhattan_distance,
                              flip_start_node_trans: bool = False, flip_end_node_trans: bool = False,
-                             respect_transition_validity: bool = True, forbidden_cells: IntVector2DArray = None,
+                             respect_transition_validity: bool = True,
+                             forbidden_cells: Optional[IntVector2DArray] = None,
                              avoid_rail=False) -> IntVector2DArray:
     """
         Creates a new path [start,end] in `grid_map.grid`, based on rail_trans, and
@@ -121,7 +124,7 @@ def connect_straight_line_in_grid_map(grid_map: GridTransitionMap, start: IntVec
         length = np.abs(end[1] - start[1]) + 1
         rows = np.repeat(start[0], length)
 
-    path = list(zip(rows, cols))
+    path: IntVector2DArray = [(int(row), int(col)) for row, col in zip(rows, cols)]
 
     for cell in path:
         transition = grid_map.grid[cell]

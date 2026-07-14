@@ -68,10 +68,10 @@ dev = [
     "jupyter",
     "notebook",
     "pydeps",
-    "pyright",
     "pytest",
     "pyvirtualdisplay",
     "ruff",
+    "ty",
 ]
 
 [build-system]
@@ -87,7 +87,7 @@ packages = ["flatland"]
 [tool.ruff]
 extend-exclude = ["docs", "notebooks"]
 
-[tool.pyright]
+[tool.ty.src]
 include = ["flatland"]
 exclude = [
     "**/__pycache__",
@@ -97,8 +97,9 @@ exclude = [
     "docs",
     "notebooks",
 ]
-pythonVersion = "3.14"
-typeCheckingMode = "standard"
+
+[tool.ty.environment]
+python-version = "3.14"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

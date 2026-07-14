@@ -1,17 +1,17 @@
-from typing import Tuple, Callable, List, Type
+from typing import Tuple, Callable, List, TypeAlias
 
 import numpy as np
 
-Vector2D: Type = Tuple[float, float]
-IntVector2D: Type = Tuple[int, int]
+Vector2D: TypeAlias = Tuple[float, float]
+IntVector2D: TypeAlias = Tuple[int, int]
 
-IntVector2DArray: Type = List[IntVector2D]
-IntVector2DArrayArray: Type = List[List[IntVector2D]]
+IntVector2DArray: TypeAlias = List[IntVector2D]
+IntVector2DArrayArray: TypeAlias = List[List[IntVector2D]]
 
-Vector2DArray: Type = List[Vector2D]
-Vector2DArrayArray: Type = List[List[Vector2D]]
+Vector2DArray: TypeAlias = List[Vector2D]
+Vector2DArrayArray: TypeAlias = List[List[Vector2D]]
 
-IntVector2DDistance: Type = Callable[[IntVector2D, IntVector2D], float]
+IntVector2DDistance: TypeAlias = Callable[[IntVector2D, IntVector2D], float]
 
 
 class Vec2dOperations:
@@ -293,8 +293,9 @@ def coordinate_to_position(depth, coords):
     return position
 
 
-def distance_on_rail(pos1, pos2, metric="Euclidean"):
+def distance_on_rail(pos1: IntVector2D, pos2: IntVector2D, metric: str = "Euclidean") -> float:
     if metric == "Euclidean":
-        return np.sqrt(np.power(pos1[0] - pos2[0], 2) + np.power(pos1[1] - pos2[1], 2))
+        return float(np.sqrt(np.power(pos1[0] - pos2[0], 2) + np.power(pos1[1] - pos2[1], 2)))
     if metric == "Manhattan":
-        return np.abs(pos1[0] - pos2[0]) + np.abs(pos1[1] - pos2[1])
+        return float(np.abs(pos1[0] - pos2[0]) + np.abs(pos1[1] - pos2[1]))
+    raise ValueError(f"unknown metric {metric!r}, expected 'Euclidean' or 'Manhattan'")

@@ -4,7 +4,7 @@ import copy
 from typing import Callable, Tuple, Optional, Dict, List
 
 import numpy as np
-from numpy.random.mtrand import RandomState
+from numpy.random import Generator
 
 from flatland.core.grid.grid4 import Grid4TransitionsEnum
 from flatland.core.grid.grid4_utils import get_direction, mirror, direction_to_point
@@ -23,23 +23,23 @@ RailGeneratorProduct = Tuple[GridTransitionMap, Optional[Dict]]
     a GridTransitionMap followed by an (optional) dict/
 """
 
-RailGenerator = Callable[[int, int, int, int], RailGeneratorProduct]
+RailGenerator = Callable[[int, int, int, int, Generator], RailGeneratorProduct]
 
 
 class RailGen(object):
     """ Base class for RailGen(erator) replacement
-    
+
         WIP to replace bare generators with classes / objects without unnamed local variables
         which prevent pickling.
-    """ 
+    """
     def __init__(self, *args, **kwargs):
         """ constructor to record any state to be reused in each "generation"
         """
         pass
 
     def generate(self, width: int, height: int, num_agents: int, num_resets: int = 0,
-                  np_random: RandomState = None) -> RailGeneratorProduct:
-        pass
+                  np_random: Optional[Generator] = None) -> RailGeneratorProduct:
+        raise NotImplementedError()
 
     def __call__(self, *args, **kwargs) -> RailGeneratorProduct:
         return self.generate(*args, **kwargs)
@@ -58,7 +58,7 @@ class EmptyRailGen(RailGen):
     """
 
     def generate(self, width: int, height: int, num_agents: int, num_resets: int = 0,
-                  np_random: RandomState = None) -> RailGenerator:
+                  np_random: Optional[Generator] = None) -> RailGeneratorProduct:
         rail_trans = RailEnvTransitions()
         grid_map = GridTransitionMap(width=width, height=height, transitions=rail_trans)
         rail_array = grid_map.grid
@@ -90,7 +90,9 @@ def complex_rail_generator(nr_start_goal=1,
     """
 
     def generator(width: int, height: int, num_agents: int, num_resets: int = 0,
-                  np_random: RandomState = None) -> RailGenerator:
+                  np_random: Optional[Generator] = None) -> RailGeneratorProduct:
+        if np_random is None:
+            np_random = np.random.default_rng()
 
         if num_agents > nr_start_goal:
             num_agents = nr_start_goal
@@ -119,16 +121,18 @@ def complex_rail_generator(nr_start_goal=1,
         #
 
         rail_trans = grid_map.transitions
-        start_goal = []
-        start_dir = []
+        start_goal: List[List[IntVector2D]] = []
+        start_dir: List[int] = []
         nr_created = 0
         created_sanity = 0
         sanity_max = 9000
+        start: IntVector2D = (0, 0)
+        goal: IntVector2D = (0, 0)
         while nr_created < nr_start_goal and created_sanity < sanity_max:
             all_ok = False
             for _ in range(sanity_max):
-                start = (np_random.integers(0, height), np_random.integers(0, width))
-                goal = (np_random.integers(0, height), np_random.integers(0, width))
+                start = (int(np_random.integers(0, height)), int(np_random.integers(0, width)))
+                goal = (int(np_random.integers(0, height)), int(np_random.integers(0, width)))
 
                 # check to make sure start,goal pos is empty?
                 if rail_array[goal] != 0 or rail_array[start] != 0:
@@ -181,8 +185,8 @@ def complex_rail_generator(nr_start_goal=1,
         while nr_created < nr_extra and created_sanity < sanity_max:
             all_ok = False
             for _ in range(sanity_max):
-                start = (np_random.integers(0, height), np_random.integers(0, width))
-                goal = (np_random.integers(0, height), np_random.integers(0, width))
+                start = (int(np_random.integers(0, height)), int(np_random.integers(0, width)))
+                goal = (int(np_random.integers(0, height)), int(np_random.integers(0, width)))
                 # check to make sure start,goal pos are not empty
                 if rail_array[goal] == 0 or rail_array[start] == 0:
                     continue
@@ -230,7 +234,7 @@ def rail_from_manual_specifications_generator(rail_spec):
     """
 
     def generator(width: int, height: int, num_agents: int, num_resets: int = 0,
-                  np_random: RandomState = None) -> RailGenerator:
+                  np_random: Optional[Generator] = None) -> RailGeneratorProduct:
         rail_env_transitions = RailEnvTransitions()
 
         height = len(rail_spec)
@@ -243,13 +247,13 @@ def rail_from_manual_specifications_generator(rail_spec):
                 index_basic_type_of_cell_ = rail_spec_of_cell[0]
                 rotation_cell_ = rail_spec_of_cell[1]
                 if index_basic_type_of_cell_ < 0 or index_basic_type_of_cell_ >= len(rail_env_transitions.transitions):
-                    print("ERROR - invalid rail_spec_of_cell type=", index_basic_type_of_cell_)
-                    return []
+                    raise ValueError(
+                        "ERROR - invalid rail_spec_of_cell type={}".format(index_basic_type_of_cell_))
                 basic_type_of_cell_ = rail_env_transitions.transitions[index_basic_type_of_cell_]
                 effective_transition_cell = rail_env_transitions.rotate_transition(basic_type_of_cell_, rotation_cell_)
                 rail.set_transitions((r, c), effective_transition_cell)
 
-        return [rail, None]
+        return rail, None
 
     return generator
 
@@ -270,7 +274,7 @@ def rail_from_file(filename, load_from_package=None) -> RailGenerator:
     """
 
     def generator(width: int, height: int, num_agents: int, num_resets: int = 0,
-                  np_random: RandomState = None) -> List:
+                  np_random: Optional[Generator] = None) -> RailGeneratorProduct:
         env_dict = persistence.RailEnvPersister.load_env_dict(filename, load_from_package=load_from_package)
         rail_env_transitions = RailEnvTransitions()
 
@@ -281,23 +285,23 @@ def rail_from_file(filename, load_from_package=None) -> RailGenerator:
             distance_map = env_dict["distance_map"]
             if len(distance_map) > 0:
                 return rail, {'distance_map': distance_map}
-        return [rail, None]
+        return rail, None
 
     return generator
 
 class RailFromGridGen(RailGen):
-    def __init__(self, rail_map):
+    def __init__(self, rail_map: GridTransitionMap):
         self.rail_map = rail_map
 
     def generate(self, width: int, height: int, num_agents: int, num_resets: int = 0,
-                  np_random: RandomState = None) -> RailGenerator:
+                  np_random: Optional[Generator] = None) -> RailGeneratorProduct:
         return self.rail_map, None
 
 
-def rail_from_grid_transition_map(rail_map) -> RailGenerator:
+def rail_from_grid_transition_map(rail_map: GridTransitionMap) -> RailGenerator:
     return RailFromGridGen(rail_map)
 
-def rail_from_grid_transition_map_old(rail_map) -> RailGenerator:
+def rail_from_grid_transition_map_old(rail_map: GridTransitionMap) -> RailGenerator:
     """
     Utility to convert a rail given by a GridTransitionMap map with the correct
     16-bit transitions specifications.
@@ -314,7 +318,7 @@ def rail_from_grid_transition_map_old(rail_map) -> RailGenerator:
     """
 
     def generator(width: int, height: int, num_agents: int, num_resets: int = 0,
-                  np_random: RandomState = None) -> RailGenerator:
+                  np_random: Optional[Generator] = None) -> RailGeneratorProduct:
         return rail_map, None
 
     return generator
@@ -353,7 +357,10 @@ def random_rail_generator(cell_type_relative_proportion=[1.0] * 11, seed=1) -> R
     """
 
     def generator(width: int, height: int, num_agents: int, num_resets: int = 0,
-                  np_random: RandomState = None) -> RailGenerator:
+                  np_random: Optional[Generator] = None) -> RailGeneratorProduct:
+        if np_random is None:
+            np_random = np.random.default_rng()
+
         t_utils = RailEnvTransitions()
 
         transition_probability = cell_type_relative_proportion
@@ -411,11 +418,13 @@ def random_rail_generator(cell_type_relative_proportion=[1.0] * 11, seed=1) -> R
         MAX_ATTEMPTS_FROM_SCRATCH = 10
 
         attempt_number = 0
+        rail: List[List[Optional[int]]] = []
         while attempt_number < MAX_ATTEMPTS_FROM_SCRATCH:
             cells_to_fill = []
             rail = []
             for r in range(height):
-                rail.append([None] * width)
+                rail_row: List[Optional[int]] = [None] * width
+                rail.append(rail_row)
                 if r > 0 and r < height - 1:
                     cells_to_fill = cells_to_fill + [(r, c) for c in range(1, width - 1)]
 
@@ -609,7 +618,7 @@ def sparse_rail_generator(*args, **kwargs):
 class SparseRailGen(RailGen):
 
     def __init__(self, max_num_cities: int = 5, grid_mode: bool = False, max_rails_between_cities: int = 4,
-                          max_rails_in_city: int = 4, seed=0) -> RailGenerator:
+                          max_rails_in_city: int = 4, seed: int = 0):
         """
         Generates railway networks with cities and inner city rails
 
@@ -639,7 +648,7 @@ class SparseRailGen(RailGen):
 
 
     def generate(self, width: int, height: int, num_agents: int, num_resets: int = 0,
-                  np_random: RandomState = None) -> RailGenerator:
+                  np_random: Optional[Generator] = None) -> RailGeneratorProduct:
         """
 
         Parameters
@@ -664,8 +673,8 @@ class SparseRailGen(RailGen):
             'city_orientations' : orientation of cities
         """
         if np_random is None:
-            np_random = RandomState()
-            
+            np_random = np.random.default_rng()
+
         rail_trans = RailEnvTransitions()
         grid_map = GridTransitionMap(width=width, height=height, transitions=rail_trans)
         # We compute the city radius by the given max number of rails it can contain.
@@ -710,7 +719,7 @@ class SparseRailGen(RailGen):
         inner_connection_points, outer_connection_points, city_orientations, city_cells = \
             self._generate_city_connection_points(
                 city_positions, city_radius, vector_field, rails_between_cities,
-                rails_in_city, np_random=np_random)
+                rails_in_city=rails_in_city, np_random=np_random)
 
         # Connect the cities through the connection points
         inter_city_lines = self._connect_cities(city_positions, outer_connection_points, city_cells,
@@ -736,8 +745,7 @@ class SparseRailGen(RailGen):
         }}
 
     def _generate_random_city_positions(self, num_cities: int, city_radius: int, width: int,
-                                        height: int, np_random: RandomState = None) -> (
-        IntVector2DArray, IntVector2DArray):
+                                        height: int, np_random: Generator) -> IntVector2DArray:
         """
         Distribute the cities randomly in the environment while respecting city sizes and guaranteeing that they
         don't overlap.
@@ -765,8 +773,8 @@ class SparseRailGen(RailGen):
             tries = 0
 
             while too_close:
-                row = city_radius + 1 + np_random.integers(height - 2 * (city_radius + 1))
-                col = city_radius + 1 + np_random.integers(width - 2 * (city_radius + 1))
+                row = city_radius + 1 + int(np_random.integers(height - 2 * (city_radius + 1)))
+                col = city_radius + 1 + int(np_random.integers(width - 2 * (city_radius + 1)))
                 too_close = False
                 # Check distance to cities
                 for city_pos in city_positions:
@@ -784,7 +792,7 @@ class SparseRailGen(RailGen):
         return city_positions
 
     def _generate_evenly_distr_city_positions(self, num_cities: int, city_radius: int, width: int, height: int
-                                              ) -> (IntVector2DArray, IntVector2DArray):
+                                              ) -> IntVector2DArray:
         """
         Distribute the cities in an evenly spaced grid
 
@@ -822,21 +830,21 @@ class SparseRailGen(RailGen):
         num_build_cities = min(num_cities, cities_per_col * cities_per_row)
         row_positions = np.linspace(city_radius + 2, height - (city_radius + 2), cities_per_row, dtype=int)
         col_positions = np.linspace(city_radius + 2, width - (city_radius + 2), cities_per_col, dtype=int)
-        city_positions = []
+        city_positions: IntVector2DArray = []
 
         for city_idx in range(num_build_cities):
-            row = row_positions[city_idx % cities_per_row]
-            col = col_positions[city_idx // cities_per_row]
+            row = int(row_positions[city_idx % cities_per_row])
+            col = int(col_positions[city_idx // cities_per_row])
             city_positions.append((row, col))
         return city_positions
 
     def _generate_city_connection_points(self, city_positions: IntVector2DArray, city_radius: int,
-                                         vector_field: IntVector2DArray, rails_between_cities: int,
-                                         rails_in_city: int = 2, np_random: RandomState = None) -> (
+                                         vector_field: np.ndarray, rails_between_cities: int,
+                                         rails_in_city: int, np_random: Generator) -> Tuple[
         List[List[List[IntVector2D]]],
         List[List[List[IntVector2D]]],
-        List[np.ndarray],
-        List[Grid4TransitionsEnum]):
+        List[Grid4TransitionsEnum],
+        IntVector2DArray]:
         """
         Generate the city connection points. Internal connection points are used to generate the parallel paths
         within the city.
@@ -887,7 +895,7 @@ class SparseRailGen(RailGen):
             connection_sides_idx = []
             idx = 1
             if self.grid_mode:
-                current_closest_direction = np_random.integers(4)
+                current_closest_direction = Grid4TransitionsEnum(np_random.integers(4))
             else:
                 current_closest_direction = direction_to_point(city_position, city_positions[closest_neighb_idx[idx]])
             connection_sides_idx.append(current_closest_direction)
@@ -896,12 +904,12 @@ class SparseRailGen(RailGen):
             city_cells.extend(self._get_cells_in_city(city_position, city_radius, city_orientations[-1], vector_field))
             # set the number of tracks within a city, at least 2 tracks per city
             connections_per_direction = np.zeros(4, dtype=int)
-            nr_of_connection_points = np_random.integers(2, rails_in_city + 1)
+            nr_of_connection_points = int(np_random.integers(2, rails_in_city + 1))
             for idx in connection_sides_idx:
                 connections_per_direction[idx] = nr_of_connection_points
             connection_points_coordinates_inner: List[List[IntVector2D]] = [[] for i in range(4)]
             connection_points_coordinates_outer: List[List[IntVector2D]] = [[] for i in range(4)]
-            number_of_out_rails = np_random.integers(1, min(rails_between_cities, nr_of_connection_points) + 1)
+            number_of_out_rails = int(np_random.integers(1, min(rails_between_cities, nr_of_connection_points) + 1))
             start_idx = int((nr_of_connection_points - number_of_out_rails) / 2)
             for direction in range(4):
                 connection_slots = np.arange(nr_of_connection_points) - start_idx
@@ -911,30 +919,36 @@ class SparseRailGen(RailGen):
                 # The magic number plus one is added such that all points have at least one offset
                 inner_point_offset = np.abs(offset_distances) + np.clip(offset_distances, 0, 1) + 1
                 for connection_idx in range(connections_per_direction[direction]):
+                    tmp_coordinates: IntVector2D
+                    out_tmp_coordinates: IntVector2D
                     if direction == 0:
                         tmp_coordinates = (
-                            city_position[0] - city_radius + inner_point_offset[connection_idx],
-                            city_position[1] + connection_slots[connection_idx])
+                            int(city_position[0] - city_radius + inner_point_offset[connection_idx]),
+                            int(city_position[1] + connection_slots[connection_idx]))
                         out_tmp_coordinates = (
-                            city_position[0] - city_radius, city_position[1] + connection_slots[connection_idx])
-                    if direction == 1:
+                            int(city_position[0] - city_radius),
+                            int(city_position[1] + connection_slots[connection_idx]))
+                    elif direction == 1:
                         tmp_coordinates = (
-                            city_position[0] + connection_slots[connection_idx],
-                            city_position[1] + city_radius - inner_point_offset[connection_idx])
+                            int(city_position[0] + connection_slots[connection_idx]),
+                            int(city_position[1] + city_radius - inner_point_offset[connection_idx]))
                         out_tmp_coordinates = (
-                            city_position[0] + connection_slots[connection_idx], city_position[1] + city_radius)
-                    if direction == 2:
+                            int(city_position[0] + connection_slots[connection_idx]),
+                            int(city_position[1] + city_radius))
+                    elif direction == 2:
                         tmp_coordinates = (
-                            city_position[0] + city_radius - inner_point_offset[connection_idx],
-                            city_position[1] + connection_slots[connection_idx])
+                            int(city_position[0] + city_radius - inner_point_offset[connection_idx]),
+                            int(city_position[1] + connection_slots[connection_idx]))
                         out_tmp_coordinates = (
-                            city_position[0] + city_radius, city_position[1] + connection_slots[connection_idx])
-                    if direction == 3:
+                            int(city_position[0] + city_radius),
+                            int(city_position[1] + connection_slots[connection_idx]))
+                    else:
                         tmp_coordinates = (
-                            city_position[0] + connection_slots[connection_idx],
-                            city_position[1] - city_radius + inner_point_offset[connection_idx])
+                            int(city_position[0] + connection_slots[connection_idx]),
+                            int(city_position[1] - city_radius + inner_point_offset[connection_idx]))
                         out_tmp_coordinates = (
-                            city_position[0] + connection_slots[connection_idx], city_position[1] - city_radius)
+                            int(city_position[0] + connection_slots[connection_idx]),
+                            int(city_position[1] - city_radius))
                     connection_points_coordinates_inner[direction].append(tmp_coordinates)
                     if connection_idx in range(start_idx, start_idx + number_of_out_rails):
                         connection_points_coordinates_outer[direction].append(out_tmp_coordinates)
@@ -945,7 +959,7 @@ class SparseRailGen(RailGen):
 
     def _connect_cities(self, city_positions: IntVector2DArray, connection_points: List[List[List[IntVector2D]]],
                         city_cells: IntVector2DArray,
-                        rail_trans: RailEnvTransitions, grid_map: RailEnvTransitions) -> List[IntVector2DArray]:
+                        rail_trans: RailEnvTransitions, grid_map: GridTransitionMap) -> IntVector2DArray:
         """
         Connects cities together through rails. Each city connects from its outgoing connection points to the closest
         cities. This guarantees that all connection points are used.
@@ -969,12 +983,12 @@ class SparseRailGen(RailGen):
         Returns a list of all the cells (Coordinates) that belong to a rail path. This can be used to access railway
         cells later.
         """
-        all_paths: List[IntVector2DArray] = []
+        all_paths: IntVector2DArray = []
 
         grid4_directions = [Grid4TransitionsEnum.NORTH, Grid4TransitionsEnum.EAST, Grid4TransitionsEnum.SOUTH,
                             Grid4TransitionsEnum.WEST]
 
-        for current_city_idx in np.arange(len(city_positions)):
+        for current_city_idx in range(len(city_positions)):
             closest_neighbours = self._closest_neighbour_in_grid4_directions(current_city_idx, city_positions)
             for out_direction in grid4_directions:
 
@@ -982,15 +996,15 @@ class SparseRailGen(RailGen):
 
                 for city_out_connection_point in connection_points[current_city_idx][out_direction]:
 
-                    min_connection_dist = np.inf
-                    for direction in grid4_directions:
-                        current_points = connection_points[neighbour_idx][direction]
-                        for tmp_in_connection_point in current_points:
-                            tmp_dist = Vec2dOperations.get_manhattan_distance(city_out_connection_point,
-                                                                              tmp_in_connection_point)
-                            if tmp_dist < min_connection_dist:
-                                min_connection_dist = tmp_dist
-                                neighbour_connection_point = tmp_in_connection_point
+                    # all connection points of the neighbouring city, in NESW order
+                    neighbour_connection_points: IntVector2DArray = [
+                        tmp_in_connection_point
+                        for direction in grid4_directions
+                        for tmp_in_connection_point in connection_points[neighbour_idx][direction]
+                    ]
+                    neighbour_connection_point = min(
+                        neighbour_connection_points,
+                        key=lambda point: Vec2dOperations.get_manhattan_distance(city_out_connection_point, point))
 
                     new_line = connect_rail_in_grid_map(grid_map, city_out_connection_point, neighbour_connection_point,
                                                         rail_trans, flip_start_node_trans=False,
@@ -1001,7 +1015,7 @@ class SparseRailGen(RailGen):
 
         return all_paths
 
-    def get_closest_neighbour_for_direction(self, closest_neighbours, out_direction):
+    def get_closest_neighbour_for_direction(self, closest_neighbours: List[Optional[int]], out_direction: int) -> int:
         """
         Given a list of clostest neighbours in each direction this returns the city index of the neighbor in a given
         direction. Direction is a 90 degree cone facing the desired directiont.
@@ -1036,11 +1050,15 @@ class SparseRailGen(RailGen):
         if neighbour_idx is not None:
             return neighbour_idx
 
-        return closest_neighbours[(out_direction + 2) % 4]  # clockwise
+        neighbour_idx = closest_neighbours[(out_direction + 2) % 4]  # clockwise
+        if neighbour_idx is not None:
+            return neighbour_idx
+
+        raise ValueError("No neighbouring city found in any direction.")
 
     def _build_inner_cities(self, city_positions: IntVector2DArray, inner_connection_points: List[List[List[IntVector2D]]],
                             outer_connection_points: List[List[List[IntVector2D]]], rail_trans: RailEnvTransitions,
-                            grid_map: GridTransitionMap) -> (List[IntVector2DArray], List[List[List[IntVector2D]]]):
+                            grid_map: GridTransitionMap) -> List[List[IntVector2DArray]]:
         """
         Set the parallel tracks within the city. The center track of the city is of the length of the city, the lenght
         of the tracks decrease by 2 for every parallel track away from the center
@@ -1069,15 +1087,12 @@ class SparseRailGen(RailGen):
         Returns a list of all the cells (Coordinates) that belong to a rail paths within the city.
         """
 
-        free_rails: List[List[List[IntVector2D]]] = [[] for i in range(len(city_positions))]
+        free_rails: List[List[IntVector2DArray]] = [[] for i in range(len(city_positions))]
         for current_city in range(len(city_positions)):
 
             # This part only works if we have keep same number of connection points for both directions
             # Also only works with two connection direction at each city
-            for i in range(4):
-                if len(inner_connection_points[current_city][i]) > 0:
-                    boarder = i
-                    break
+            boarder = next(i for i in range(4) if len(inner_connection_points[current_city][i]) > 0)
 
             opposite_boarder = (boarder + 2) % 4
             nr_of_connection_points = len(inner_connection_points[current_city][boarder])
@@ -1109,7 +1124,7 @@ class SparseRailGen(RailGen):
         return free_rails
 
     def _set_trainstation_positions(self, city_positions: IntVector2DArray, city_radius: int,
-                                    free_rails: List[List[List[IntVector2D]]]) -> List[List[Tuple[IntVector2D, int]]]:
+                                    free_rails: List[List[IntVector2DArray]]) -> List[List[Tuple[IntVector2D, int]]]:
         """
         Populate the cities with possible start and end positions. Trainstations are set on the center of each paralell
         track. Each trainstation gets a coordinate as well as number indicating what track it is on
@@ -1129,7 +1144,7 @@ class SparseRailGen(RailGen):
         track number within the city
         """
         num_cities = len(city_positions)
-        train_stations = [[] for i in range(num_cities)]
+        train_stations: List[List[Tuple[IntVector2D, int]]] = [[] for i in range(num_cities)]
         for current_city in range(len(city_positions)):
             for track_nbr in range(len(free_rails[current_city])):
                 possible_location = free_rails[current_city][track_nbr][
@@ -1137,8 +1152,8 @@ class SparseRailGen(RailGen):
                 train_stations[current_city].append((possible_location, track_nbr))
         return train_stations
 
-    def _fix_transitions(self, city_cells: IntVector2DArray, inter_city_lines: List[IntVector2DArray],
-                         grid_map: GridTransitionMap, vector_field):
+    def _fix_transitions(self, city_cells: IntVector2DArray, inter_city_lines: IntVector2DArray,
+                         grid_map: GridTransitionMap, vector_field: np.ndarray):
         """
         Check and fix transitions of all the cells that were modified. This is necessary because we ignore validity
         while drawing the rails.
@@ -1172,9 +1187,11 @@ class SparseRailGen(RailGen):
                 rails_to_fix_cnt += 1
         # Fix all other cells
         for cell in range(rails_to_fix_cnt):
-            grid_map.fix_transitions((rails_to_fix[3 * cell], rails_to_fix[3 * cell + 1]), rails_to_fix[3 * cell + 2])
+            grid_map.fix_transitions((int(rails_to_fix[3 * cell]), int(rails_to_fix[3 * cell + 1])),
+                                     int(rails_to_fix[3 * cell + 2]))
 
-    def _closest_neighbour_in_grid4_directions(self, current_city_idx: int, city_positions: IntVector2DArray) -> List[int]:
+    def _closest_neighbour_in_grid4_directions(self, current_city_idx: int,
+                                               city_positions: IntVector2DArray) -> List[Optional[int]]:
         """
         Finds the closest city in each direction of the current city
         Parameters
@@ -1190,7 +1207,7 @@ class SparseRailGen(RailGen):
         """
 
         city_distances = []
-        closest_neighbour: List[int] = [None for i in range(4)]
+        closest_neighbour: List[Optional[int]] = [None for i in range(4)]
 
         # compute distance to all other cities
         for city_idx in range(len(city_positions)):
@@ -1201,7 +1218,7 @@ class SparseRailGen(RailGen):
         for neighbour in sorted_neighbours[1:]:  # do not include city itself
             direction_to_neighbour = direction_to_point(city_positions[current_city_idx], city_positions[neighbour])
             if closest_neighbour[direction_to_neighbour] is None:
-                closest_neighbour[direction_to_neighbour] = neighbour
+                closest_neighbour[direction_to_neighbour] = int(neighbour)
 
             # early return once all 4 directions have a closest neighbour
             if None not in closest_neighbour:
@@ -1227,7 +1244,7 @@ class SparseRailGen(RailGen):
         return sorted(range(len(seq)), key=seq.__getitem__)
 
     def _get_cells_in_city(self, center: IntVector2D, radius: int, city_orientation: int,
-                           vector_field: IntVector2DArray) -> IntVector2DArray:
+                           vector_field: np.ndarray) -> IntVector2DArray:
         """
         Function the collect cells of a city. It also populates the vector field accoring to the orientation of the
         city.
@@ -1258,7 +1275,7 @@ class SparseRailGen(RailGen):
         y_range = np.arange(center[1] - radius, center[1] + radius + 1)
         x_values = np.repeat(x_range, len(y_range))
         y_values = np.tile(y_range, len(x_range))
-        city_cells = list(zip(x_values, y_values))
+        city_cells: IntVector2DArray = [(int(x), int(y)) for x, y in zip(x_values, y_values)]
         for cell in city_cells:
             vector_field[cell] = align_cell_to_city(center, city_orientation, cell)
         return city_cells

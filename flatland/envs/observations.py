@@ -2,7 +2,7 @@
 Collection of environment-specific ObservationBuilder.
 """
 import collections
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, TYPE_CHECKING
 
 import numpy as np
 
@@ -10,9 +10,15 @@ from flatland.core.env import Environment
 from flatland.core.env_observation_builder import ObservationBuilder
 from flatland.core.env_prediction_builder import PredictionBuilder
 from flatland.core.grid.grid4_utils import get_new_position
-from flatland.core.grid.grid_utils import coordinate_to_position
+from flatland.core.grid.grid_utils import IntVector2D, coordinate_to_position
 from flatland.envs.agent_utils import RailAgentStatus, EnvAgent
 from flatland.utils.ordered_set import OrderedSet
+
+if TYPE_CHECKING:
+    # Imported for typing only: flatland.envs.rail_env imports this module. Used as the
+    # "RailEnv" forward reference in the ObservationBuilder[...] base classes below, which
+    # ruff does not count as a usage — hence the noqa.
+    from flatland.envs.rail_env import RailEnv  # noqa: F401
 
 
 
@@ -30,7 +36,7 @@ Node = collections.namedtuple('Node', 'dist_own_target_encountered '
                                         'num_agents_ready_to_depart '
                                         'childs')
 
-class TreeObsForRailEnv(ObservationBuilder):
+class TreeObsForRailEnv(ObservationBuilder[Optional["Node"], "RailEnv"]):
     """
     TreeObsForRailEnv object.
 
@@ -44,19 +50,24 @@ class TreeObsForRailEnv(ObservationBuilder):
 
     tree_explored_actions_char = ['L', 'F', 'R', 'B']
 
-    def __init__(self, max_depth: int, predictor: PredictionBuilder = None):
+    def __init__(self, max_depth: int, predictor: Optional[PredictionBuilder] = None):
         super().__init__()
         self.max_depth = max_depth
         self.observation_dim = 11
-        self.location_has_agent = {}
-        self.location_has_agent_direction = {}
+        # keys are grid coordinates, but built with tuple(...) on the agent attributes,
+        # so pyright only knows they are int tuples of unspecified length
+        self.location_has_agent: Dict[Tuple[int, ...], int] = {}
+        self.location_has_agent_direction: Dict[Tuple[int, ...], int] = {}
+        self.location_has_agent_speed: Dict[Tuple[int, ...], float] = {}
+        self.location_has_agent_malfunction: Dict[Tuple[int, ...], int] = {}
+        self.location_has_agent_ready_to_depart: Dict[Tuple[int, ...], int] = {}
         self.predictor = predictor
-        self.location_has_target = None
+        self.location_has_target: Dict[Tuple[int, ...], int] = {}
 
     def reset(self):
         self.location_has_target = {tuple(agent.target): 1 for agent in self.env.agents}
 
-    def get_many(self, handles: Optional[List[int]] = None) -> Dict[int, Node]:
+    def get_many(self, handles: Optional[List[int]] = None) -> Dict[int, Optional[Node]]:
         """
         Called whenever an observation has to be computed for the `env` environment, for each agent with handle
         in the `handles` list.
@@ -107,10 +118,12 @@ class TreeObsForRailEnv(ObservationBuilder):
                     self.location_has_agent_ready_to_depart.get(tuple(_agent.initial_position), 0) + 1
 
         observations = super().get_many(handles)
-
+        # The base class permits a whole-env scalar observation (DummyObservationBuilder
+        # returns one); this builder is strictly per-agent, so it always gets the dict.
+        assert isinstance(observations, dict)
         return observations
 
-    def get(self, handle: int = 0) -> Node:
+    def get(self, handle: int = 0) -> Optional[Node]:
         """
         Computes the current observation for agent `handle` in env
 
@@ -193,15 +206,19 @@ class TreeObsForRailEnv(ObservationBuilder):
             print("ERROR: obs _get - handle ", handle, " len(agents)", len(self.env.agents))
         agent = self.env.agents[handle]  # TODO: handle being treated as index
 
+        agent_virtual_position: IntVector2D
         if agent.status == RailAgentStatus.READY_TO_DEPART:
             agent_virtual_position = agent.initial_position
         elif agent.status == RailAgentStatus.ACTIVE:
+            # ACTIVE agents are on the grid, so their position is set (see RailAgentStatus)
+            assert agent.position is not None
             agent_virtual_position = agent.position
         elif agent.status == RailAgentStatus.DONE:
             agent_virtual_position = agent.target
         else:
             return None
 
+        assert self.env.rail is not None, "the env must be reset before observations can be built"
         possible_transitions = self.env.rail.get_transitions(*agent_virtual_position, agent.direction)
         num_transitions = np.count_nonzero(possible_transitions)
 
@@ -230,7 +247,7 @@ class TreeObsForRailEnv(ObservationBuilder):
         orientation = agent.direction
 
         if num_transitions == 1:
-            orientation = np.argmax(possible_transitions)
+            orientation = int(np.argmax(possible_transitions))
 
         for i, branch_direction in enumerate([(orientation + i) % 4 for i in range(-1, 3)]):
 
@@ -249,12 +266,13 @@ class TreeObsForRailEnv(ObservationBuilder):
 
         return root_node_observation
 
-    def _explore_branch(self, handle, position, direction, tot_dist, depth):
+    def _explore_branch(self, handle: int, position: IntVector2D, direction: int, tot_dist: int, depth: int):
         """
         Utility function to compute tree-based observations.
         We walk along the branch and collect the information documented in the get() function.
         If there is a branching point a new node is created and each possible branch is explored.
         """
+        assert self.env.rail is not None, "the env must be reset before observations can be built"
 
         # [Recursive branch opened]
         if depth >= self.max_depth + 1:
@@ -313,7 +331,7 @@ class TreeObsForRailEnv(ObservationBuilder):
                     other_agent_opposite_direction += self.location_has_agent[position]
 
                 # Check number of possible transitions for agent and total number of transitions in cell (type)
-            cell_transitions = self.env.rail.get_transitions(*position, direction)
+            cell_transitions = self.env.rail.get_transitions(position[0], position[1], direction)
             transition_bit = bin(self.env.rail.get_full_transitions(*position))
             total_transitions = transition_bit.count("1")
             crossing_found = False
@@ -404,7 +422,7 @@ class TreeObsForRailEnv(ObservationBuilder):
                     # Keep walking through the tree along `direction`
                     exploring = True
                     # convert one-hot encoding to 0,1,2,3
-                    direction = np.argmax(cell_transitions)
+                    direction = int(np.argmax(cell_transitions))
                     position = get_new_position(position, direction)
                     num_steps += 1
                     tot_dist += 1
@@ -456,7 +474,7 @@ class TreeObsForRailEnv(ObservationBuilder):
         # Start from the current orientation, and see which transitions are available;
         # organize them as [left, forward, right, back], relative to the current orientation
         # Get the possible transitions
-        possible_transitions = self.env.rail.get_transitions(*position, direction)
+        possible_transitions = self.env.rail.get_transitions(position[0], position[1], direction)
         for i, branch_direction in enumerate([(direction + 4 + i) % 4 for i in range(-1, 3)]):
             if last_is_dead_end and self.env.rail.get_transition((*position, direction),
                                                                  (branch_direction + 2) % 4):
@@ -528,7 +546,7 @@ class TreeObsForRailEnv(ObservationBuilder):
         return int((direction + 2) % 4)
 
 
-class GlobalObsForRailEnv(ObservationBuilder):
+class GlobalObsForRailEnv(ObservationBuilder[Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]], "RailEnv"]):
     """
     Gives a global observation of the entire rail environment.
     The observation is composed of the following elements:
@@ -550,10 +568,8 @@ class GlobalObsForRailEnv(ObservationBuilder):
     def __init__(self):
         super(GlobalObsForRailEnv, self).__init__()
 
-    def set_env(self, env: Environment):
-        super().set_env(env)
-
     def reset(self):
+        assert self.env.rail is not None, "the env must be reset before observations can be built"
         self.rail_obs = np.zeros((self.env.height, self.env.width, 16))
         for i in range(self.rail_obs.shape[0]):
             for j in range(self.rail_obs.shape[1]):
@@ -561,7 +577,7 @@ class GlobalObsForRailEnv(ObservationBuilder):
                 bitlist = [0] * (16 - len(bitlist)) + bitlist
                 self.rail_obs[i, j] = np.array(bitlist)
 
-    def get(self, handle: int = 0) -> (np.ndarray, np.ndarray, np.ndarray):
+    def get(self, handle: int = 0) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
 
         agent = self.env.agents[handle]
         if agent.status == RailAgentStatus.READY_TO_DEPART:
@@ -607,7 +623,7 @@ class GlobalObsForRailEnv(ObservationBuilder):
         return self.rail_obs, obs_agents_state, obs_targets
 
 
-class LocalObsForRailEnv(ObservationBuilder):
+class LocalObsForRailEnv(ObservationBuilder[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray], "RailEnv"]):
     """
     !!!!!!WARNING!!! THIS IS DEPRACTED AND NOT UPDATED TO FLATLAND 2.0!!!!!
     Gives a local observation of the rail environment around the agent.
@@ -643,6 +659,7 @@ class LocalObsForRailEnv(ObservationBuilder):
     def reset(self):
         # We build the transition map with a view_radius empty cells expansion on each side.
         # This helps to collect the local transition map view when the agent is close to a border.
+        assert self.env.rail is not None, "the env must be reset before observations can be built"
         self.max_padding = max(self.view_width, self.view_height)
         self.rail_obs = np.zeros((self.env.height,
                                   self.env.width, 16))
@@ -652,7 +669,7 @@ class LocalObsForRailEnv(ObservationBuilder):
                 bitlist = [0] * (16 - len(bitlist)) + bitlist
                 self.rail_obs[i, j] = np.array(bitlist)
 
-    def get(self, handle: int = 0) -> (np.ndarray, np.ndarray, np.ndarray, np.ndarray):
+    def get(self, handle: int = 0) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         agents = self.env.agents
         agent = agents[handle]
 
@@ -698,15 +715,17 @@ class LocalObsForRailEnv(ObservationBuilder):
         Called whenever an observation has to be computed for the `env` environment, for each agent with handle
         in the `handles` list.
         """
-
-        return super().get_many(handles)
+        observations = super().get_many(handles)
+        # The base class permits a whole-env scalar observation (DummyObservationBuilder
+        # returns one); this builder is strictly per-agent, so it always gets the dict.
+        assert isinstance(observations, dict)
+        return observations
 
     def field_of_view(self, position, direction, state=None):
         # Compute the local field of view for an agent in the environment
-        data_collection = False
+        temp_visible_data = None
         if state is not None:
             temp_visible_data = np.zeros(shape=(self.view_height, 2 * self.view_width + 1, 16))
-            data_collection = True
         if direction == 0:
             origin = (position[0] + self.center, position[1] - self.view_width)
         elif direction == 1:
@@ -743,7 +762,7 @@ class LocalObsForRailEnv(ObservationBuilder):
                         rel_coords.append((h, w))
                     # if data_collection:
                     #    temp_visible_data[h, w, :] = state[origin[0] - w, origin[1] - h, :]
-        if data_collection:
+        if temp_visible_data is not None:
             return temp_visible_data
         else:
             return visible, rel_coords

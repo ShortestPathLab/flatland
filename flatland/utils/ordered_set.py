@@ -17,6 +17,11 @@ class OrderedSet(OrderedDict, MutableSet):
     def add(self, elem):
         self[elem] = None
 
+    def pop(self, *args, **kwargs):
+        """`OrderedDict` and `MutableSet` declare `pop` incompatibly. `OrderedDict` wins in the MRO,
+        so make that explicit: `pop(elem[, default])`, not `MutableSet`'s arbitrary-element `pop()`."""
+        return OrderedDict.pop(self, *args, **kwargs)
+
     def discard(self, elem):
         self.pop(elem, None)
 

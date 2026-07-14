@@ -1,5 +1,6 @@
 import numpy as np
 import random
+from typing import List, Optional
 
 from flatland.core.grid.grid_utils import IntVector2D, IntVector2DDistance
 from flatland.core.grid.grid_utils import IntVector2DArray
@@ -11,13 +12,13 @@ from flatland.utils.ordered_set import OrderedSet
 class AStarNode:
     """A node class for A* Pathfinding"""
 
-    def __init__(self, pos: IntVector2D, parent=None):
-        self.parent = parent
+    def __init__(self, pos: IntVector2D, parent: Optional["AStarNode"] = None):
+        self.parent: Optional["AStarNode"] = parent
         self.pos: IntVector2D = pos
-        self.g = 0.0
-        self.h = 0.0
-        self.f = 0.0
-        self.merged = 0.0
+        self.g: float = 0.0
+        self.h: float = 0.0
+        self.f: float = 0.0
+        self.merged: float = 0.0
 
     def __eq__(self, other):
         """
@@ -31,7 +32,7 @@ class AStarNode:
     def __hash__(self):
         return hash(self.pos)
 
-    def update_if_better(self, other):
+    def update_if_better(self, other: "AStarNode"):
         if other.g < self.g:
             self.parent = other.parent
             self.g = other.g
@@ -41,7 +42,8 @@ class AStarNode:
 
 def a_star(grid_map: GridTransitionMap, start: IntVector2D, end: IntVector2D,
            a_star_distance_function: IntVector2DDistance = Vec2d.get_manhattan_distance, avoid_rails=False,
-           respect_transition_validity=True, forbidden_cells: IntVector2DArray = None) -> IntVector2DArray:
+           respect_transition_validity=True,
+           forbidden_cells: Optional[IntVector2DArray] = None) -> IntVector2DArray:
     """
 
     :param avoid_rails:
@@ -77,7 +79,8 @@ def a_star(grid_map: GridTransitionMap, start: IntVector2D, end: IntVector2D,
 
     while len(open_nodes) > 0:
         # get node with current shortest est. path (lowest f)
-        current_node = None
+        current_node: Optional[AStarNode] = None
+        item: AStarNode
         for item in open_nodes:
             if current_node is None:
                 current_node = item
@@ -87,6 +90,8 @@ def a_star(grid_map: GridTransitionMap, start: IntVector2D, end: IntVector2D,
             # elif item.g== current_node.g and item.merged > current_node.merged:
             #         current_node = item
 
+        # open_nodes is non-empty (loop condition), so the loop above always picked a node
+        assert current_node is not None
 
         for item in open_nodes:
 
@@ -123,8 +128,8 @@ def a_star(grid_map: GridTransitionMap, start: IntVector2D, end: IntVector2D,
         # found the goal
         if current_node.pos == end_node.pos :
 
-            path = []
-            current = current_node
+            path: IntVector2DArray = []
+            current: Optional[AStarNode] = current_node
             while current is not None:
                 path.append(current.pos)
                 current = current.parent
@@ -133,7 +138,8 @@ def a_star(grid_map: GridTransitionMap, start: IntVector2D, end: IntVector2D,
             return path[::-1]
 
         # generate children
-        children = []
+        children: List[AStarNode] = []
+        prev_pos: Optional[IntVector2D]
         if current_node.parent is not None:
             prev_pos = current_node.parent.pos
         else:
@@ -141,7 +147,7 @@ def a_star(grid_map: GridTransitionMap, start: IntVector2D, end: IntVector2D,
 
         for new_pos in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
             # update the "current" pos
-            node_pos: IntVector2D = Vec2d.add(current_node.pos, new_pos)
+            node_pos: IntVector2D = (current_node.pos[0] + new_pos[0], current_node.pos[1] + new_pos[1])
 
             # is node_pos inside the grid?
             if node_pos[0] >= rail_shape[0] or node_pos[0] < 0 or node_pos[1] >= rail_shape[1] or node_pos[1] < 0:
@@ -169,10 +175,11 @@ def a_star(grid_map: GridTransitionMap, start: IntVector2D, end: IntVector2D,
             # create the f, g, and h values
             child.g = current_node.g + 1.0
             # this heuristic avoids diagonal paths
-            child.merged = child.parent.merged+grid_map.reserve[child.pos] * np.clip(grid_map.grid[child.pos], 0, 1)
+            # child.parent is current_node by construction above
+            child.merged = float(current_node.merged+grid_map.reserve[child.pos] * np.clip(grid_map.grid[child.pos], 0, 1))
 
             if avoid_rails:
-                child.h = a_star_distance_function(child.pos, end_node.pos) + np.clip(grid_map.grid[child.pos], 0, 1)
+                child.h = float(a_star_distance_function(child.pos, end_node.pos) + np.clip(grid_map.grid[child.pos], 0, 1))
             else:
                 child.h = a_star_distance_function(child.pos, end_node.pos) #+ 20 - np.clip(grid_map.grid[child.pos], 0, 1)*10  #- 10 if child.merged > 0 and np.clip(grid_map.grid[child.pos], 0, 1) ==0 else 0
             child.f = child.g + child.h
@@ -209,3 +216,5 @@ def a_star(grid_map: GridTransitionMap, start: IntVector2D, end: IntVector2D,
         # no full path found
         if len(open_nodes) == 0:
             return []
+
+    return []

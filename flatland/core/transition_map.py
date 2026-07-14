@@ -4,14 +4,14 @@ TransitionMap and derived classes.
 
 import numpy as np
 from importlib.resources import as_file, files
+from typing import List, Optional, Tuple
+
 from numpy import array
 
-from flatland.core.grid.grid4 import Grid4Transitions
 from flatland.core.grid.grid4_utils import get_new_position, get_direction
-from flatland.core.grid.grid_utils import IntVector2DArray, IntVector2D
+from flatland.core.grid.grid_utils import IntVector2D
 from flatland.core.grid.grid_utils import Vec2dOperations as Vec2d
 from flatland.core.grid.rail_env_grid import RailEnvTransitions
-from flatland.core.transitions import Transitions
 from flatland.utils.ordered_set import OrderedSet
 
 
@@ -24,18 +24,20 @@ class TransitionMap:
     cells.
     """
 
-    def get_transitions(self, cell_id):
+    def get_transitions(self, row, column, orientation):
         """
-        Return a tuple of transitions available in a cell specified by
-        `cell_id` (e.g., a tuple of size of the maximum number of transitions,
-        with values 0 or 1, or potentially in between,
+        Return a tuple of transitions available in the cell (row, column) for an
+        agent facing direction `orientation` (e.g., a tuple of size of the maximum
+        number of transitions, with values 0 or 1, or potentially in between,
         for stochastic transitions).
 
         Parameters
         ----------
-        cell_id : [cell identifier]
-            The cell_id object depends on the specific implementation.
-            It generally is an int (e.g., an index) or a tuple of indices.
+        row : int
+        column : int
+            (row,column) specifies the cell in this transition map.
+        orientation : int
+            Orientation of the agent inside the cell.
 
         Returns
         -------
@@ -117,7 +119,7 @@ class GridTransitionMap(TransitionMap):
     GridTransitionMap implements utility functions.
     """
 
-    def __init__(self, width, height, transitions: Transitions = Grid4Transitions([]), random_seed=None):
+    def __init__(self, width, height, transitions: RailEnvTransitions = RailEnvTransitions(), random_seed=None):
         """
         Builder for GridTransitionMap object.
 
@@ -127,9 +129,11 @@ class GridTransitionMap(TransitionMap):
             Width of the grid.
         height : int
             Height of the grid.
-        transitions : Transitions object
+        transitions : RailEnvTransitions object
             The Transitions object to use to encode/decode transitions over the
-            grid.
+            grid. Must be a `RailEnvTransitions`: this class calls `is_valid`,
+            `rotate_transition` and `gDir2dRC`, which the `Transitions` base
+            class does not define.
 
         """
 
@@ -312,7 +316,7 @@ class GridTransitionMap(TransitionMap):
         self.height = new_height
         self.grid = new_grid
 
-    def is_dead_end(self, rcPos: IntVector2DArray):
+    def is_dead_end(self, rcPos: IntVector2D):
         """
         Check if the cell is a dead-end.
 
@@ -332,7 +336,7 @@ class GridTransitionMap(TransitionMap):
             tmp = tmp >> 1
         return nbits == 1
 
-    def is_simple_turn(self, rcPos: IntVector2DArray):
+    def is_simple_turn(self, rcPos: IntVector2D):
         """
         Check if the cell is a left/right simple turn
 
@@ -359,7 +363,7 @@ class GridTransitionMap(TransitionMap):
 
         return is_simple_turn(tmp)
 
-    def check_path_exists(self, start: IntVector2DArray, direction: int, end: IntVector2DArray):
+    def check_path_exists(self, start: IntVector2D, direction: int, end: IntVector2D):
         """
         Breath first search for a possible path from one node with a certain orientation to a target node.
         :param start: Start cell rom where we want to check the path
@@ -368,7 +372,7 @@ class GridTransitionMap(TransitionMap):
         :return: True if a path exists, False otherwise
         """
         visited = OrderedSet()
-        stack = [(start, direction)]
+        stack: List[Tuple[IntVector2D, int]] = [(start, direction)]
         while stack:
             node = stack.pop()
             node_position = node[0]
@@ -387,7 +391,7 @@ class GridTransitionMap(TransitionMap):
 
         return False
 
-    def cell_neighbours_valid(self, rcPos: IntVector2DArray, check_this_cell=False):
+    def cell_neighbours_valid(self, rcPos: IntVector2D, check_this_cell=False):
         """
         Check validity of cell at rcPos = tuple(row, column)
         Checks that:
@@ -430,7 +434,7 @@ class GridTransitionMap(TransitionMap):
 
             # Get the transitions out of gPos2, using iDirOut as the inbound direction
             # if there are no available transitions, ie (0,0,0,0), then rcPos is invalid
-            t4Trans2 = self.get_transitions(*gPos2, iDirOut)
+            t4Trans2 = self.get_transitions(gPos2[0], gPos2[1], iDirOut)
             if any(t4Trans2):
                 continue
             else:
@@ -460,7 +464,7 @@ class GridTransitionMap(TransitionMap):
 
         return True
 
-    def fix_neighbours(self, rcPos: IntVector2DArray, check_this_cell=False):
+    def fix_neighbours(self, rcPos: IntVector2D, check_this_cell=False):
         """
         Check validity of cell at rcPos = tuple(row, column)
         Checks that:
@@ -503,7 +507,7 @@ class GridTransitionMap(TransitionMap):
 
             # Get the transitions out of gPos2, using iDirOut as the inbound direction
             # if there are no available transitions, ie (0,0,0,0), then rcPos is invalid
-            t4Trans2 = self.get_transitions(*gPos2, iDirOut)
+            t4Trans2 = self.get_transitions(gPos2[0], gPos2[1], iDirOut)
             if any(t4Trans2):
                 continue
             else:
@@ -512,7 +516,7 @@ class GridTransitionMap(TransitionMap):
 
         return True
 
-    def fix_transitions(self, rcPos: IntVector2DArray, direction: IntVector2D = -1):
+    def fix_transitions(self, rcPos: IntVector2D, direction: int = -1):
         """
         Fixes broken transitions
         """
@@ -596,7 +600,7 @@ class GridTransitionMap(TransitionMap):
             self.set_transitions((rcPos[0], rcPos[1]), transition)
         return True
 
-    def validate_new_transition(self, prev_pos: IntVector2D, current_pos: IntVector2D,
+    def validate_new_transition(self, prev_pos: Optional[IntVector2D], current_pos: IntVector2D,
                                 new_pos: IntVector2D, end_pos: IntVector2D):
         """
         Utility function to test that a path drawn by a-start algorithm uses valid transition objects.

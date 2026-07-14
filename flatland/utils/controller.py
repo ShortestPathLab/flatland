@@ -6,6 +6,7 @@ import os
 import sys
 import time
 from enum import IntEnum
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, TypedDict
 
 from flatland.envs.malfunction_generators import (
     malfunction_from_file,
@@ -15,6 +16,9 @@ from flatland.envs.rail_generators import rail_from_file
 from flatland.envs.schedule_generators import (
     schedule_from_file,
 )
+
+if TYPE_CHECKING:
+    from flatland.utils.rendertools import RenderTool
 
 parser = argparse.ArgumentParser(description="Args for remote evaluation")
 parser.add_argument(
@@ -127,11 +131,13 @@ def path_controller(time_step, local_env: RailEnv, path_all: list, debug=False):
     return action_dict, out_of_path, inconsistent
 
 
-def get_action(agent_id: int, next_loc: tuple, env: RailEnv):
+def get_action(agent_id: int, next_loc: Tuple[int, int], env: RailEnv) -> int:
     current_loc = env.agents[agent_id].position
     current_direction = env.agents[agent_id].direction
     if current_loc == next_loc:
         return Train_Actions.STOP
+
+    assert current_loc is not None, "Agent {} is not on the grid, it has no position to move from.".format(agent_id)
 
     move_direction = 0
     if next_loc[0] - current_loc[0] == 1:
@@ -207,29 +213,45 @@ def check_conflict(time_step, path_all, local_env: RailEnv, debug=False):
     return conflict, failed_agents
 
 
+#: One row of the per-test-case statistics table produced by :func:`evaluator`.
+#: Declared with the functional syntax because some keys are not valid identifiers.
+RunStatistics = TypedDict("RunStatistics", {
+    "test_case": str,
+    "No. of agents": int,
+    "time_step": int,
+    "num_done": int,
+    "deadlines_met": int,
+    "sum_of_cost": int,
+    "done_percentage": float,
+    "all_done": bool,
+    "cost": List[int],
+    "penalty": List[int],
+    "sic_final": int,
+    "p": int,
+    "f": float,
+})
+
+
 def evaluator(
     get_path,
     test_cases: list,
     debug: bool,
     visualizer: bool,
     question_type: int,
-    ddl: list = None,
-    ddl_scale: int = 0.2,
-    baseline_pscore={},
-    save_pscore=None,
-    penalty_scale=2,
-    mute=False,
-    write=None,
-    replan=None,
+    ddl: Optional[List[str]] = None,
+    ddl_scale: float = 0.2,
+    baseline_pscore: Dict[str, float] = {},
+    save_pscore: Optional[str] = None,
+    penalty_scale: float = 2,
+    mute: bool = False,
+    write: Optional[str] = None,
+    replan: Optional[Callable[..., Any]] = None,
 ):
-    statistics = []
+    statistics: List[RunStatistics] = []
     runtimes = []
     pscores = {}
-    if visualizer:
-        from flatland.utils.rendertools import RenderTool
     print(output_header, flush=True)
-    if write is not None:
-        out = open(write, "w+", 1)
+    out = open(write, "w+", 1) if write is not None else None
 
     for i, test_case in enumerate(test_cases):
         test_name = (
@@ -254,8 +276,11 @@ def evaluator(
 
         local_env.reset()
 
+        max_episode_steps = local_env._max_episode_steps
+        assert max_episode_steps is not None, "the env must be reset before it can be evaluated."
+
         num_of_agents = local_env.get_num_agents()
-        statistic_dict = {
+        statistic_dict: RunStatistics = {
             "test_case": test_name,
             "No. of agents": local_env.get_num_agents(),
             "time_step": 0,
@@ -266,13 +291,17 @@ def evaluator(
             "all_done": False,
             "cost": [0] * num_of_agents,
             "penalty": [0] * num_of_agents,
-            "sic_final": [0] * num_of_agents,
+            # A scalar: sum_of_cost + sum(penalty), always written below before it is read.
+            "sic_final": 0,
             "p": 0,
             "f": 0,
         }
 
         # Initiate the renderer
+        env_renderer: Optional["RenderTool"] = None
         if visualizer:
+            from flatland.utils.rendertools import RenderTool
+
             env_renderer = RenderTool(
                 local_env,
                 show_debug=True,
@@ -359,8 +388,9 @@ def evaluator(
         time_step = 0
         out_of_path = False
         inconsistent = False
-        done = None
-        while time_step < local_env._max_episode_steps:
+        # `step()` returns the very same dict, so this is the state before the first step
+        done = local_env.dones
+        while time_step < max_episode_steps:
             if out_of_path:
                 if debug:
                     eprint(
@@ -390,7 +420,7 @@ def evaluator(
             # execuate action
             next_obs, all_rewards, done, _ = local_env.step(action_dict)
 
-            if visualizer:
+            if env_renderer is not None:
                 env_renderer.render_env(
                     show=True, show_observations=False, show_predictions=False
                 )
@@ -429,6 +459,7 @@ def evaluator(
                     replan_start = time.time()
                     if mute:
                         mute_print()
+                    assert replan is not None, "a replan function is required for question type 3."
                     new_paths = replan(
                         copy.deepcopy(local_env.agents),
                         copy.deepcopy(local_env.rail),
@@ -446,21 +477,16 @@ def evaluator(
             num_done = 0
             num_deadlines_met = 0
             for agent_id in range(0, len(local_env.agents)):
+                deadline: Optional[int] = local_env.agents[agent_id].deadline
                 if local_env.agents[agent_id].status in [2, 3]:
                     num_done += 1
-                    if question_type == 3 and local_env.agents[agent_id].deadline:
-                        if (
-                            statistic_dict["cost"][agent_id]
-                            <= local_env.agents[agent_id].deadline
-                        ):
+                    if question_type == 3 and deadline:
+                        if statistic_dict["cost"][agent_id] <= deadline:
                             num_deadlines_met += 1
                     else:
                         num_deadlines_met += 1
                 else:
-                    if (
-                        question_type == 3
-                        and time_step > local_env.agents[agent_id].deadline
-                    ):
+                    if question_type == 3 and deadline is not None and time_step > deadline:
                         statistic_dict["penalty"][agent_id] += 1
                     statistic_dict["cost"][agent_id] += 1
 
@@ -487,11 +513,13 @@ def evaluator(
 
         runtimes[-1] += replan_runtime
         # End of one episode.
+        max_episode_steps = local_env._max_episode_steps
+        assert max_episode_steps is not None, "the env is reset above, so this is set"
         for agent_id in range(0, len(local_env.agents)):
             if done[agent_id]:
                 statistic_dict["sum_of_cost"] += statistic_dict["cost"][agent_id]
             else:
-                statistic_dict["sum_of_cost"] += local_env._max_episode_steps
+                statistic_dict["sum_of_cost"] += max_episode_steps
         statistic_dict["sic_final"] = statistic_dict["sum_of_cost"] + sum(
             statistic_dict["penalty"]
         )
@@ -520,7 +548,7 @@ def evaluator(
             ),
             flush=True,
         )
-        if write is not None:
+        if out is not None:
             out.write(
                 csv_template.format(
                     test_name,
@@ -584,7 +612,7 @@ def evaluator(
         ),
         flush=True,
     )
-    if write is not None:
+    if out is not None:
         out.write(
             csv_template.format(
                 "Summary",

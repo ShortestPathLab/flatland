@@ -2,17 +2,20 @@
 Collection of environment-specific PredictionBuilder.
 """
 
+from typing import Optional
+
 import numpy as np
 
 from flatland.core.env_prediction_builder import PredictionBuilder
+from flatland.core.grid.grid_utils import IntVector2D
 from flatland.envs.agent_utils import RailAgentStatus
 from flatland.envs.distance_map import DistanceMap
-from flatland.envs.rail_env import RailEnvActions
+from flatland.envs.rail_env import RailEnv, RailEnvActions
 from flatland.envs.rail_env_shortest_paths import get_shortest_paths
 from flatland.utils.ordered_set import OrderedSet
 
 
-class DummyPredictorForRailEnv(PredictionBuilder):
+class DummyPredictorForRailEnv(PredictionBuilder[RailEnv]):
     """
     DummyPredictorForRailEnv object.
 
@@ -20,7 +23,7 @@ class DummyPredictorForRailEnv(PredictionBuilder):
     The prediction acts as if no other agent is in the environment and always takes the forward action.
     """
 
-    def get(self, handle: int = None):
+    def get(self, handle: Optional[int] = None):
         """
         Called whenever get_many in the observation build is called.
 
@@ -52,6 +55,8 @@ class DummyPredictorForRailEnv(PredictionBuilder):
                 # TODO make this generic
                 continue
             action_priorities = [RailEnvActions.MOVE_FORWARD, RailEnvActions.MOVE_LEFT, RailEnvActions.MOVE_RIGHT]
+            # ACTIVE agents are on the grid, so their position is set (see RailAgentStatus)
+            assert agent.position is not None
             agent_virtual_position = agent.position
             agent_virtual_direction = agent.direction
             prediction = np.zeros(shape=(self.max_depth + 1, 5))
@@ -82,7 +87,7 @@ class DummyPredictorForRailEnv(PredictionBuilder):
         return prediction_dict
 
 
-class ShortestPathPredictorForRailEnv(PredictionBuilder):
+class ShortestPathPredictorForRailEnv(PredictionBuilder[RailEnv]):
     """
     ShortestPathPredictorForRailEnv object.
 
@@ -93,7 +98,7 @@ class ShortestPathPredictorForRailEnv(PredictionBuilder):
     def __init__(self, max_depth: int = 20):
         super().__init__(max_depth)
 
-    def get(self, handle: int = None):
+    def get(self, handle: Optional[int] = None):
         """
         Called whenever get_many in the observation build is called.
         Requires distance_map to extract the shortest path.
@@ -127,9 +132,12 @@ class ShortestPathPredictorForRailEnv(PredictionBuilder):
         prediction_dict = {}
         for agent in agents:
 
+            agent_virtual_position: IntVector2D
             if agent.status == RailAgentStatus.READY_TO_DEPART:
                 agent_virtual_position = agent.initial_position
             elif agent.status == RailAgentStatus.ACTIVE:
+                # ACTIVE agents are on the grid, so their position is set (see RailAgentStatus)
+                assert agent.position is not None
                 agent_virtual_position = agent.position
             elif agent.status == RailAgentStatus.DONE:
                 agent_virtual_position = agent.target
@@ -164,8 +172,12 @@ class ShortestPathPredictorForRailEnv(PredictionBuilder):
                     continue
 
                 if index % times_per_cell == 0:
-                    new_position = shortest_path[0].position
-                    new_direction = shortest_path[0].direction
+                    next_waypoint = shortest_path[0]
+                    # Waypoints on a shortest path are grid cells; only action plans use
+                    # position=None (for agents that are off the grid).
+                    assert next_waypoint.position is not None
+                    new_position = next_waypoint.position
+                    new_direction = next_waypoint.direction
 
                     shortest_path = shortest_path[1:]
 

@@ -1,10 +1,12 @@
 
 
 import pickle
+from typing import Any
+
 import msgpack
 import numpy as np
 
-from flatland.envs import rail_env 
+from flatland.envs import rail_env
 
 #from flatland.core.env import Environment
 from flatland.core.env_observation_builder import DummyObservationBuilder
@@ -20,6 +22,27 @@ from flatland.envs.agent_utils import EnvAgent
 from flatland.envs import malfunction_generators as mal_gen
 from flatland.envs import rail_generators as rail_gen
 from flatland.envs import schedule_generators as sched_gen
+
+
+def _msgpack_default(obj: Any) -> Any:
+    """ msgpack encoder hook for types it does not handle natively.
+
+        The rail/schedule generators draw positions, directions and speeds from a numpy
+        Generator, so the env dict can contain numpy scalars (np.int64, np.float64) rather
+        than the python ints/floats the type annotations promise. Serialise them as their
+        python equivalents - .item() is value-preserving.
+    """
+    if isinstance(obj, np.generic):
+        return obj.item()
+    raise TypeError(f"Cannot serialize {obj!r} of type {type(obj)}")
+
+
+def _packb(data: Any) -> bytes:
+    packed = msgpack.packb(data, default=_msgpack_default)
+    # msgpack ships no type information; packb is inferred as returning Optional[bytes]
+    # because Packer.pack returns None when autoreset=False, which packb never sets.
+    assert packed is not None
+    return packed
 
 
 class RailEnvPersister(object):
@@ -58,12 +81,14 @@ class RailEnvPersister(object):
         with open(filename, "wb") as file_out:
 
             if filename.endswith("mpk"):
-                data = msgpack.packb(env_dict)
-                
-                
+                data = _packb(env_dict)
+
             elif filename.endswith("pkl"):
                 data = pickle.dumps(env_dict)
                 #pickle.dump(env_dict, file_out)
+
+            else:
+                raise ValueError(f"filename {filename} must end with either pkl or mpk")
 
             file_out.write(data)
 
@@ -89,7 +114,7 @@ class RailEnvPersister(object):
 
         with open(filename, "wb") as file_out:
             if filename.endswith(".mpk"):
-                file_out.write(msgpack.packb(dict_env))
+                file_out.write(_packb(dict_env))
             elif filename.endswith(".pkl"):
                 pickle.dump(dict_env, file_out)
 
@@ -219,44 +244,51 @@ class RailEnvPersister(object):
 ################################################################################################
 # deprecated methods moved from RailEnv.  Most likely broken.
 
-    def deprecated_get_full_state_msg(self) -> msgpack.Packer:
+# These were methods of RailEnv, so their "self" was the env; on RailEnvPersister they have
+# to be passed the env explicitly, like every other method of this class.
+
+    @classmethod
+    def deprecated_get_full_state_msg(cls, env) -> bytes:
         """
         Returns state of environment in msgpack object
         """
-        msg_data_dict = self.get_full_state_dict()
-        return msgpack.packb(msg_data_dict, use_bin_type=True)
+        msg_data_dict = cls.get_full_state(env)
+        return _packb(msg_data_dict)
 
-    def deprecated_get_agent_state_msg(self) -> msgpack.Packer:
+    @classmethod
+    def deprecated_get_agent_state_msg(cls, env) -> bytes:
         """
         Returns agents information in msgpack object
         """
-        agent_data = [agent.to_agent() for agent in self.agents]
+        agent_data = [agent.to_agent() for agent in env.agents]
         msg_data = {
             "agents": agent_data}
-        return msgpack.packb(msg_data, use_bin_type=True)
+        return _packb(msg_data)
 
-    def deprecated_get_full_state_dist_msg(self) -> msgpack.Packer:
+    @classmethod
+    def deprecated_get_full_state_dist_msg(cls, env) -> bytes:
         """
         Returns environment information with distance map information as msgpack object
         """
-        grid_data = self.rail.grid.tolist()
-        agent_data = [agent.to_agent() for agent in self.agents]
+        grid_data = env.rail.grid.tolist()
+        agent_data = [agent.to_agent() for agent in env.agents]
 
         # I think these calls do nothing - they create packed data and it is discarded
         #msgpack.packb(grid_data, use_bin_type=True)
         #msgpack.packb(agent_data, use_bin_type=True)
 
-        distance_map_data = self.distance_map.get()
-        malfunction_data: mal_gen.MalfunctionProcessData = self.malfunction_process_data
+        distance_map_data = env.distance_map.get()
+        malfunction_data: mal_gen.MalfunctionProcessData = env.malfunction_process_data
         #msgpack.packb(distance_map_data, use_bin_type=True)  # does nothing
         msg_data = {
             "grid": grid_data,
             "agents": agent_data,
             "distance_map": distance_map_data,
             "malfunction": malfunction_data}
-        return msgpack.packb(msg_data, use_bin_type=True)
+        return _packb(msg_data)
 
-    def deprecated_set_full_state_msg(self, msg_data):
+    @classmethod
+    def deprecated_set_full_state_msg(cls, env, msg_data):
         """
         Sets environment state with msgdata object passed as argument
 
@@ -265,19 +297,20 @@ class RailEnvPersister(object):
         msg_data: msgpack object
         """
         data = msgpack.unpackb(msg_data, use_list=False)
-        self.rail.grid = np.array(data["grid"])
+        env.rail.grid = np.array(data["grid"])
         # agents are always reset as not moving
         if "agents_static" in data:
-            self.agents = EnvAgent.load_legacy_static_agent(data["agents_static"])
+            env.agents = EnvAgent.load_legacy_static_agent(data["agents_static"])
         else:
-            self.agents = [EnvAgent(*d[0:12]) for d in data["agents"]]
+            env.agents = [EnvAgent(*d[0:12]) for d in data["agents"]]
         # setup with loaded data
-        self.height, self.width = self.rail.grid.shape
-        self.rail.height = self.height
-        self.rail.width = self.width
-        self.dones = dict.fromkeys(list(range(self.get_num_agents())) + ["__all__"], False)
+        env.height, env.width = env.rail.grid.shape
+        env.rail.height = env.height
+        env.rail.width = env.width
+        env.dones = dict.fromkeys(list(range(env.get_num_agents())) + ["__all__"], False)
 
-    def deprecated_set_full_state_dist_msg(self, msg_data):
+    @classmethod
+    def deprecated_set_full_state_dist_msg(cls, env, msg_data):
         """
         Sets environment grid state and distance map with msgdata object passed as argument
 
@@ -286,16 +319,16 @@ class RailEnvPersister(object):
         msg_data: msgpack object
         """
         data = msgpack.unpackb(msg_data, use_list=False)
-        self.rail.grid = np.array(data["grid"])
+        env.rail.grid = np.array(data["grid"])
         # agents are always reset as not moving
         if "agents_static" in data:
-            self.agents = EnvAgent.load_legacy_static_agent(data["agents_static"])
+            env.agents = EnvAgent.load_legacy_static_agent(data["agents_static"])
         else:
-            self.agents = [EnvAgent(*d[0:12]) for d in data["agents"]]
+            env.agents = [EnvAgent(*d[0:12]) for d in data["agents"]]
         if "distance_map" in data.keys():
-            self.distance_map.set(data["distance_map"])
+            env.distance_map.set(data["distance_map"])
         # setup with loaded data
-        self.height, self.width = self.rail.grid.shape
-        self.rail.height = self.height
-        self.rail.width = self.width
-        self.dones = dict.fromkeys(list(range(self.get_num_agents())) + ["__all__"], False)
+        env.height, env.width = env.rail.grid.shape
+        env.rail.height = env.height
+        env.rail.width = env.width
+        env.dones = dict.fromkeys(list(range(env.get_num_agents())) + ["__all__"], False)

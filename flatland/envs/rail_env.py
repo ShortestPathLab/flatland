@@ -419,7 +419,7 @@ class RailEnv(Environment):
         self.distance_map.reset(self.agents, self.rail)
 
         # Reset the malfunction generator
-        if "generate" in dir(self.malfunction_generator):
+        if hasattr(self.malfunction_generator, "generate"):
             self.malfunction_generator.generate(reset=True)
         else:
             self.malfunction_generator(reset=True)
@@ -473,7 +473,7 @@ class RailEnv(Environment):
 
         """
 
-        if "generate" in dir(self.malfunction_generator):
+        if hasattr(self.malfunction_generator, "generate"):
             malfunction: mal_gen.Malfunction = self.malfunction_generator.generate(agent, self.np_random)
         else:
             malfunction: mal_gen.Malfunction = self.malfunction_generator(agent, self.np_random)

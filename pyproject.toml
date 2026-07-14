@@ -19,10 +19,8 @@ classifiers = [
 dependencies = [
     "attrs",
     "click",
-    "graphviz",
     "matplotlib",
     "msgpack",
-    "networkx",
     "nicegui",
     "numpy",
     "pillow",
@@ -30,6 +28,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Opens the renderer in a native desktop window instead of a browser tab.
+# Deliberately optional: a headless training box has no display to open it on,
+# and the renderer falls back to printing its URL there.
+native = ["pywebview"]
 # Needed only by flatland.evaluators (the AIcrowd challenge submission service)
 # and the `flatland-evaluator` console script.
 evaluator = [
@@ -41,7 +43,10 @@ evaluator = [
 ]
 # Needed only by the in-notebook helpers: flatland.utils.jupyter_utils and
 # flatland.utils.editor. Not required to build, step or render an env.
+# graphviz is here, not in the core deps, because the only thing that ever drew a graph
+# was the MotionCheck visualisation in Agent-Close-Following.ipynb, which now owns it.
 notebooks = [
+    "graphviz",
     "ipycanvas",
     "ipyevents",
     "ipython",

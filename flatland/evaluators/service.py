@@ -143,6 +143,9 @@ class FlatlandRemoteEvaluationService:
         self.merge_dir = merge_dir
         if merge_dir and not os.path.exists(self.merge_dir):
             os.makedirs(self.merge_dir)
+        # save_episode() and save_merged_env() are the only readers of env.cur_episode,
+        # so per-step recording is worth its cost only when one of them will run.
+        self.record_episodes = episode_dir is not None or merge_dir is not None
         self.use_pickle = use_pickle
         self.missing_only = missing_only
         self.episode_actions = []
@@ -682,7 +685,11 @@ class FlatlandRemoteEvaluationService:
                                schedule_generator=schedule_from_file(test_env_file_path),
                                malfunction_generator_and_process_data=malfunction_from_file(test_env_file_path),
                                obs_builder_object=DummyObservationBuilder(),
-                               record_steps=True)
+                               # Recording every agent's state each step is only ever read back by
+                               # RailEnvPersister.save_episode, ie the episode and merge dumps. Video
+                               # frames render from env.agents directly and don't need it. Scored runs
+                               # set neither dir, so they no longer pay for a recording nobody reads.
+                               record_steps=self.record_episodes)
 
             self.begin_simulation = time.time()
 

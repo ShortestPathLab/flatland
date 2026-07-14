@@ -541,26 +541,29 @@ source = { editable = "." }
 dependencies = [
     { name = "attrs" },
     { name = "click" },
-    { name = "crowdai-api" },
     { name = "graphviz" },
     { name = "ipycanvas" },
+    { name = "ipython" },
     { name = "ipywidgets" },
     { name = "matplotlib" },
     { name = "msgpack" },
-    { name = "msgpack-numpy" },
     { name = "networkx" },
     { name = "numpy" },
-    { name = "pandas" },
     { name = "pillow" },
     { name = "pyglet" },
     { name = "recordtype" },
-    { name = "redis" },
-    { name = "timeout-decorator" },
 ]
 
 [package.optional-dependencies]
 aws = [
     { name = "boto3" },
+]
+evaluator = [
+    { name = "crowdai-api" },
+    { name = "msgpack-numpy" },
+    { name = "pandas" },
+    { name = "redis" },
+    { name = "timeout-decorator" },
 ]
 
 [package.dev-dependencies]
@@ -569,6 +572,7 @@ dev = [
     { name = "bumpversion" },
     { name = "coverage" },
     { name = "docutils" },
+    { name = "flatland-rl", extra = ["evaluator"] },
     { name = "imageio" },
     { name = "jupyter" },
     { name = "notebook" },
@@ -594,23 +598,24 @@ requires-dist = [
     { name = "attrs" },
     { name = "boto3", marker = "extra == 'aws'" },
     { name = "click" },
-    { name = "crowdai-api" },
+    { name = "crowdai-api", marker = "extra == 'evaluator'" },
     { name = "graphviz" },
     { name = "ipycanvas" },
+    { name = "ipython" },
     { name = "ipywidgets" },
     { name = "matplotlib" },
     { name = "msgpack" },
-    { name = "msgpack-numpy" },
+    { name = "msgpack-numpy", marker = "extra == 'evaluator'" },
     { name = "networkx" },
     { name = "numpy" },
-    { name = "pandas" },
+    { name = "pandas", marker = "extra == 'evaluator'" },
     { name = "pillow" },
     { name = "pyglet" },
     { name = "recordtype" },
-    { name = "redis" },
-    { name = "timeout-decorator" },
+    { name = "redis", marker = "extra == 'evaluator'" },
+    { name = "timeout-decorator", marker = "extra == 'evaluator'" },
 ]
-provides-extras = ["aws"]
+provides-extras = ["aws", "evaluator"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -618,6 +623,7 @@ dev = [
     { name = "bumpversion" },
     { name = "coverage" },
     { name = "docutils" },
+    { name = "flatland-rl", extras = ["evaluator"] },
     { name = "imageio" },
     { name = "jupyter" },
     { name = "notebook" },

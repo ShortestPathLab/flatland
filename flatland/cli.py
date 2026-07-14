@@ -6,12 +6,10 @@ import time
 
 import click
 import numpy as np
-import redis
 
 from flatland.envs.rail_env import RailEnv
 from flatland.envs.rail_generators import complex_rail_generator
 from flatland.envs.schedule_generators import complex_schedule_generator
-from flatland.evaluators.service import FlatlandRemoteEvaluationService
 from flatland.utils.rendertools import RenderTool
 
 
@@ -79,6 +77,19 @@ def demo(args=None):
               required=False
               )
 def evaluator(tests, service_id, shuffle, disable_timeouts, results_path):
+    # Imported lazily: the evaluation service is only available with the "evaluator" extra,
+    # so that `flatland-demo` and the env itself stay usable without it.
+    try:
+        import redis
+
+        from flatland.evaluators.service import FlatlandRemoteEvaluationService
+    except ImportError as e:
+        raise click.ClickException(
+            "The evaluator requires the optional 'evaluator' dependencies, which are not installed.\n"
+            "Install them with: pip install 'flatland-rl[evaluator]'\n"
+            f"(missing: {e.name})"
+        )
+
     try:
         redis_connection = redis.Redis()
         redis_connection.ping()

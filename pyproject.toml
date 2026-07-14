@@ -14,27 +14,35 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 
+# The environment itself, plus rendering. Everything needed to build a RailEnv,
+# step it and render it. See the extras below for the evaluation service.
 dependencies = [
     "attrs",
     "click",
-    "crowdai-api",
     "graphviz",
     "ipycanvas",
+    "ipython",
     "ipywidgets",
     "matplotlib",
     "msgpack",
-    "msgpack-numpy",
     "networkx",
     "numpy",
-    "pandas",
     "pillow",
     "pyglet",
     "recordtype",
-    "redis",
-    "timeout-decorator",
 ]
 
 [project.optional-dependencies]
+# Needed only by flatland.evaluators (the AIcrowd challenge submission service)
+# and the `flatland-evaluator` console script.
+evaluator = [
+    "crowdai-api",
+    "msgpack-numpy",
+    "pandas",
+    "redis",
+    "timeout-decorator",
+]
+# Optional S3 upload support inside flatland.evaluators.aicrowd_helpers.
 aws = ["boto3"]
 
 [project.scripts]
@@ -46,6 +54,8 @@ Homepage = "https://gitlab.aicrowd.com/flatland/flatland"
 
 [dependency-groups]
 dev = [
+    # tests and CI exercise flatland.evaluators, so the dev env installs that extra too
+    "flatland-rl[evaluator]",
     "benchmarker",
     "bumpversion",
     "coverage",

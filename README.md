@@ -47,6 +47,17 @@ $ uv add flatland-rl
 
 This is the preferred method to install Flatland, as it will always install the most recent stable release.
 
+### Optional extras
+
+The base install gives you the environment and the renderer. The evaluation service (`flatland-evaluator`, used to
+grade challenge submissions) has additional dependencies, installed via the `evaluator` extra:
+
+```console
+$ pip install 'flatland-rl[evaluator]'
+```
+
+There is also an `aws` extra, which adds S3 upload support to the evaluation service.
+
 ### From sources
 
 The Flatland code source is available from [AIcrowd gitlab](https://gitlab.aicrowd.com/flatland/flatland).

@@ -9,6 +9,7 @@ from recordtype import recordtype
 
 from flatland.envs.agent_utils import RailAgentStatus
 
+from flatland.utils import console
 from flatland.utils.graphics_pil import PILGL, PILSVG
 from flatland.utils.graphics_web import WEBGL
 
@@ -39,7 +40,7 @@ class RenderTool(object):
                  agent_render_variant=AgentRenderVariant.ONE_STEP_BEHIND,
                  show_debug=False, clear_debug_text=True,
                  screen_width=None, screen_height=None, cell_size=None,
-                 host=None, port=None, wait_for_client=False,
+                 host=None, port=None, wait_for_client=False, native=None, exit_on_close=None,
                  image_format=None, quality=None, max_fps=None):
         """
         screen_width/screen_height
@@ -51,6 +52,14 @@ class RenderTool(object):
             Overrides the above with an explicit pixel size per grid cell, so
             the canvas grows with the grid. Capped at 300px, the size of the
             source artwork. Useful for high-detail offline frames.
+        native
+            WEB only. Try to open a native desktop window (default True). Falls
+            back to printing the URL to open in a browser when there is no
+            display or pywebview is not installed.
+        exit_on_close
+            WEB only. If a native window opened, closing it ends the process
+            (default True). Hard-exits, so `finally` blocks do not run - set
+            False if the render is a side-view onto a job that must survive.
         image_format / quality / max_fps
             WEB only - see WEBGL. Control the live stream to the browser; they
             do not affect get_image() or save_image(), which stay lossless.
@@ -63,7 +72,11 @@ class RenderTool(object):
         self.agent_render_variant = agent_render_variant
 
         if gl not in GL_NAMES:
-            print("[", gl, "] not found, switch to WEB")
+            console.warn(
+                f"There is no graphics layer called '{gl}'.\n"
+                f"Falling back to 'WEB'. Valid choices: {', '.join(GL_NAMES)}.",
+                title="UNKNOWN RENDERER",
+            )
             gl = "WEB"
 
         is_web = gl in ("WEB", "PGL")
@@ -73,7 +86,8 @@ class RenderTool(object):
         self.renderer = RenderLocal(env, gl, jupyter,
              agent_render_variant,
              show_debug, clear_debug_text, screen_width, screen_height, cell_size=cell_size,
-             host=host, port=port, wait_for_client=wait_for_client,
+             host=host, port=port, wait_for_client=wait_for_client, native=native,
+             exit_on_close=exit_on_close,
              image_format=image_format, quality=quality, max_fps=max_fps)
         self.gl = self.renderer.gl
 
@@ -168,8 +182,8 @@ class RenderLocal(RenderBase):
     def __init__(self, env, gl="WEB", jupyter=False,
                  agent_render_variant=AgentRenderVariant.ONE_STEP_BEHIND,
                  show_debug=False, clear_debug_text=True, screen_width=800, screen_height=600,
-                 cell_size=None, host=None, port=None, wait_for_client=False,
-                 image_format=None, quality=None, max_fps=None):
+                 cell_size=None, host=None, port=None, wait_for_client=False, native=None,
+                 exit_on_close=None, image_format=None, quality=None, max_fps=None):
 
         self.env = env
         self.frame_nr = 0
@@ -190,7 +204,8 @@ class RenderLocal(RenderBase):
                              screen_height=screen_height, cell_size=cell_size)
         else:
             kwargs = {k: v for k, v in
-                      dict(image_format=image_format, quality=quality, max_fps=max_fps).items()
+                      dict(image_format=image_format, quality=quality, max_fps=max_fps,
+                           native=native, exit_on_close=exit_on_close).items()
                       if v is not None}
             self.gl = WEBGL(env.width, env.height, jupyter, screen_width=screen_width,
                             screen_height=screen_height, cell_size=cell_size,

@@ -25,6 +25,7 @@ dependencies = [
     "numpy",
     "pillow",
     "recordtype",
+    "rich",
 ]
 
 [project.optional-dependencies]

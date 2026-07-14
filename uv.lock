@@ -699,6 +699,7 @@ dependencies = [
     { name = "numpy" },
     { name = "pillow" },
     { name = "recordtype" },
+    { name = "rich" },
 ]
 
 [package.optional-dependencies]
@@ -771,6 +772,7 @@ requires-dist = [
     { name = "pywebview", marker = "extra == 'native'" },
     { name = "recordtype" },
     { name = "redis", marker = "extra == 'evaluator'" },
+    { name = "rich" },
     { name = "timeout-decorator", marker = "extra == 'evaluator'" },
 ]
 provides-extras = ["aws", "evaluator", "native", "notebooks"]

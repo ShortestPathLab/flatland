@@ -123,9 +123,13 @@ class RenderTool(object):
     def get_endpoint_URL(self):
         """ URL of the page serving this environment, or None for the
             non-displaying graphics layers (PIL / PILSVG).
+
+            Also None before the window is open: with no port named, the port is
+            not chosen until the server binds one, and there is no honest URL to
+            give out until then.
         """
         gl = self.gl
-        if isinstance(gl, WEBGL):
+        if isinstance(gl, WEBGL) and gl.port is not None:
             return f"http://{gl.host}:{gl.port}/"
         return None
 

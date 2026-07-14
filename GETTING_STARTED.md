@@ -379,17 +379,23 @@ You are probably on a network that blocks Git. Try the clone again on a differen
 hotspot is a good test). Flatland is a public repository — you should never be asked for GitHub
 credentials, so if you are, the URL has a typo.
 
-### "The flatland render server cannot use port 8080"
+### "The flatland render server cannot use port ..."
 
-Something else on your machine is already listening on that port — Flatland says so rather than
-failing mysteriously. Pick another one:
+Flatland serves the visualisation over a local port, starting at 8080. If 8080 is busy — another dev
+server, or a second Flatland running in the next terminal — it simply tries 8081, then 8082, and so
+on, so you should never see this by default.
+
+You only get this error if you *named* a port that something else already holds. That is treated as
+an error rather than quietly moved, because asking for a specific port usually means something else
+is expecting the render to be there. Either name a free one, or drop the option and let Flatland
+choose:
 
 ```console
-$ uv run flatland demo --port 8099
+$ uv run flatland demo             # picks the first free port from 8080 up
+$ uv run flatland demo --port 8099 # or insist on one
 ```
 
-Any number between 8000 and 9999 that nothing else is using will do. In your own scripts, pass it
-through: `RenderTool(env, native=True, port=8099)`.
+Whichever port it lands on is the one printed in the terminal panel and used by the window.
 
 ### The window does not open, and I get a URL instead
 

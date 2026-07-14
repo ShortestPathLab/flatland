@@ -30,6 +30,12 @@ from flatland.utils.graphics_pil import PILSVG
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 8080
 
+# How many ports to try, upward from DEFAULT_PORT, when none was asked for.
+# Large enough that you would have to be hosting a small farm to exhaust it,
+# small enough that exhausting it means something is wrong and we should say so
+# rather than scan into the ephemeral range.
+PORT_SCAN = 64
+
 # How long to wait before deciding the native window came up. It dies almost
 # immediately when it is going to fail (no display, no webview runtime), so this
 # only needs to outlast process startup.
@@ -310,27 +316,63 @@ def _try_open_native_window(url, title="Flatland", size=(400, 400)):
     return proc, None
 
 
-def _claim_port(host, port):
-    """Fail loudly, now, if `port` is not ours to take.
-
-    uvicorn runs the app's lifespan startup hooks *before* it binds the socket,
-    so our `started` event fires even when the bind then fails. Waiting on that
-    event therefore cannot tell a healthy server from one that never bound - and
-    the failure mode is nasty: we would print a URL that some *other* process is
-    answering on, and the user would watch a stale render and never know.
-    """
+def _bind_error(host, port):
+    """Is `port` ours to take? Returns None if it is, or the OSError if not."""
     probe = socket.socket()
     try:
         # No SO_REUSEADDR: we want this to fail exactly when uvicorn's bind would.
         probe.bind((host, port))
     except OSError as e:
-        raise RuntimeError(
-            f"The flatland render server cannot use port {port} - something else "
-            f"is already listening there ({e.strerror or e}). "
-            f"Choose another one, e.g. --port {port + 1}."
-        ) from None
+        return e
     finally:
         probe.close()
+    return None
+
+
+def _claim_port(host, port):
+    """Settle on a port to serve on, before uvicorn gets a say. Returns it.
+
+    We probe rather than letting uvicorn discover the problem, because uvicorn
+    runs the app's lifespan startup hooks *before* it binds the socket, so our
+    `started` event fires even when the bind then fails. Waiting on that event
+    therefore cannot tell a healthy server from one that never bound - and the
+    failure mode is nasty: we would print a URL that some *other* process is
+    answering on, and the user would watch a stale render and never know.
+
+    `port=None` means "any port", and we scan upward from DEFAULT_PORT. A box
+    where 8080 is already taken is entirely ordinary - another dev server, or a
+    second flatland run in the next terminal - and there is nothing there for
+    the user to decide, so deciding for them beats failing at them.
+
+    An explicit port, on the other hand, is a request and not a hint: the caller
+    may well have picked it because something *else* is expecting the render on
+    exactly that port. Quietly serving on a different one would break that
+    silently, so a taken port stays an error.
+
+    Note the gap between probing and uvicorn's own bind: nothing stops another
+    process taking the port in between. Nothing can - the loser of that race has
+    to lose somewhere - and it is a good deal narrower than the alternative.
+    """
+    if port is not None:
+        err = _bind_error(host, port)
+        if err is None:
+            return port
+        raise RuntimeError(
+            f"The flatland render server cannot use port {port} - something else "
+            f"is already listening there ({err.strerror or err}). "
+            f"Choose another one, e.g. --port {port + 1}, or leave the port unset "
+            f"to have a free one picked for you."
+        ) from None
+
+    for candidate in range(DEFAULT_PORT, DEFAULT_PORT + PORT_SCAN):
+        if _bind_error(host, candidate) is None:
+            return candidate
+
+    raise RuntimeError(
+        f"The flatland render server could not find a free port in "
+        f"{DEFAULT_PORT}-{DEFAULT_PORT + PORT_SCAN - 1}: every one of them is "
+        f"already in use. Free one up, or name one yourself with --port."
+    )
 
 
 class _Server:
@@ -340,10 +382,9 @@ class _Server:
         # thread followed by an opaque "failed to start".
         import nicegui  # noqa: F401
 
-        _claim_port(host, port)
-
         self.host = host
-        self.port = port
+        # None means "any"; the port we actually got is the one to report.
+        self.port = _claim_port(host, port)
         self.started = threading.Event()
         self._error = None
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -353,7 +394,7 @@ class _Server:
         in_time = self.started.wait(timeout=30)
         if self._error or not in_time:
             raise RuntimeError(
-                f"The flatland render server could not start on {host}:{port} "
+                f"The flatland render server could not start on {self.host}:{self.port} "
                 f"({self._error or 'timed out'})."
             )
 
@@ -545,9 +586,13 @@ def _ensure_server(host, port):
     with _server_lock:
         if _server is None:
             _server = _Server(host, port)
-        elif (host, port) != (_server.host, _server.port):
+        elif host != _server.host or (port is not None and port != _server.port):
             # uvicorn is already bound; a second host/port in one process would
             # need a second server. Say so rather than silently ignoring it.
+            #
+            # An unset port asks for "somewhere", and the running server is a
+            # perfectly good somewhere - so it is not a conflict and gets no
+            # warning. Only an explicit request we cannot honour is worth one.
             console.warn(
                 f"A render server is already running on {_server.host}:{_server.port}.\n"
                 f"The request for {host}:{port} is being ignored - this environment\n"
@@ -622,7 +667,11 @@ class WEBGL(PILSVG):
         super().__init__(width, height, jupyter, screen_width, screen_height, cell_size)
 
         self.host = host or os.environ.get("FLATLAND_RENDER_HOST", DEFAULT_HOST)
-        self.port = int(port or os.environ.get("FLATLAND_RENDER_PORT", DEFAULT_PORT))
+        # Stays None when nobody named a port: that is not "8080", it is "any",
+        # and only _claim_port - once it has probed - can turn it into a number.
+        # open_window writes the port we actually got back over this.
+        requested_port = port if port is not None else os.environ.get("FLATLAND_RENDER_PORT")
+        self.port = int(requested_port) if requested_port is not None else None
         self.native = native and os.environ.get("FLATLAND_RENDER_NATIVE", "1") != "0"
         self.exit_on_close = exit_on_close
 
@@ -659,6 +708,10 @@ class WEBGL(PILSVG):
     def open_window(self):
         assert self.window_open is False, "Window is already open!"
         server = _ensure_server(self.host, self.port)
+        # We may have asked for "any" (or been redirected onto an already-running
+        # server); either way the port below is the real, bound one, and callers
+        # reading self.port - get_endpoint_URL among them - need that, not None.
+        self.port = server.port
         _renderers[self._idx] = self
         self.window_open = True
 

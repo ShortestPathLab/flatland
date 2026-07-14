@@ -87,7 +87,10 @@ def demo(
                           "run from step 0. --no-wait starts immediately."),
     ] = True,
     host: Annotated[Optional[str], typer.Option(help="Address to serve on.")] = None,
-    port: Annotated[Optional[int], typer.Option(help="Port to serve on.")] = None,
+    port: Annotated[
+        Optional[int],
+        typer.Option(help="Port to serve on. Default: the first free port from 8080 up."),
+    ] = None,
     cell_size: Annotated[
         Optional[int], typer.Option(help="Pixels per cell. Higher is sharper and slower.")
     ] = None,

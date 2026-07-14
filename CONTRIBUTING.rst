@@ -72,11 +72,6 @@ Ready to contribute? Here's how to set up `flatland` for local development.
 
     This creates a ``.venv`` virtual env from ``uv.lock``, with the project and all development dependencies installed.
 
-    These steps are performed if you run
-
-    $ getting_started/getting_started.bat/.sh
-
-
 4. Create a branch for local development::
 
     $ git checkout -b name-of-your-bugfix-or-feature

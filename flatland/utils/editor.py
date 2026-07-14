@@ -41,7 +41,9 @@ class View(object):
     """ The Jupyter Editor View - creates and holds the widgets comprising the Editor.
     """
 
-    def __init__(self, editor, sGL="MPL", screen_width=1200, screen_height=1200):
+    # PILSVG, not WEB: the editor draws into its own notebook canvas widget via
+    # get_image(), so it must not stand up a render server of its own.
+    def __init__(self, editor, sGL="PILSVG", screen_width=1200, screen_height=1200):
         self.editor = self.model = editor
         self.sGL = sGL
         self.xyScreen = (screen_width, screen_height)

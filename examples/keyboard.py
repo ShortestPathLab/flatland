@@ -2,7 +2,6 @@
 from flatland.envs.rail_generators import complex_rail_generator
 from flatland.envs.rail_env import RailEnv
 from flatland.utils.rendertools import RenderTool
-from pyglet.window import key
 import time
 
 
@@ -20,48 +19,38 @@ env = RailEnv(  width=15, #Width/columns of grids
                number_of_agents=1) # How many trains are enabled.
 env.reset() # initialize railway env
  
-# Initiate the graphic module
+# Initiate the graphic module. This serves the env to a browser; open the URL it
+# prints, and press the arrow keys in that page to drive the train.
 render = RenderTool(env,
                          show_debug=False,
-                         screen_height=500,  # Window resolution height
-                         screen_width=500)  # Window resolution width
+                         screen_height=500,  # Render resolution height
+                         screen_width=500,   # Render resolution width
+                         wait_for_client=True)  # don't start until someone is watching
 render.render_env(show=True, frames=False, show_observations=False)
-window=render.gl.window  #We will use this window object to capture user input
 
-#Capture key press event from window and set pressed key to pressedKey variable
-pressedKey = None #store pressed key here
-keyMap={key.LEFT:1,#Turn left
-       key.UP:2,#Go forward
-       key.RIGHT:3,#Turn right
-       key.DOWN:4#Stop
+# Arrow key presses arrive from the browser page.
+keyMap={"ArrowLeft":1,#Turn left
+       "ArrowUp":2,#Go forward
+       "ArrowRight":3,#Turn right
+       "ArrowDown":4#Stop
        }
-
-@window.event
-def on_key_press(symbol, modifiers):
-    global pressedKey
-    if symbol in keyMap.keys():
-        pressedKey = keyMap[symbol]
 
 #Define Controller
 def my_controller(number_agents,first_makespan=False):
    _action = {}
-   global pressedKey #declare pressedKey is a global variable
- 
+
    if first_makespan:
        #In the first frame of flatland, agents aren disabled,
        #  use any action to enable agents.
        for i in range(0,number_agents):
            _action[i] = 2
        return _action
-  
+
    #Retrieve pressed action and put it into an action dictionary.
    #We only have 1 agent in this practice,
    #  thus we assign the pressed action only to agent 0
-   if pressedKey is not None:
-       _action[0] = pressedKey
-   else:
-       _action[0] = 0
-   pressedKey = None
+   pressedKey = render.gl.pop_key()  # most recent arrow key, or None
+   _action[0] = keyMap.get(pressedKey, 0)
    return _action
 
 
@@ -78,12 +67,12 @@ while not all_done:
     all_done = done["__all__"]
  
    #count cost for each agent
-    for key,value in done.items():
-        if value == False and key != "__all__":
-            if key not in cost_dict.keys():
-                cost_dict[key] = 1
+    for agent_handle, value in done.items():
+        if not value and agent_handle != "__all__":
+            if agent_handle not in cost_dict.keys():
+                cost_dict[agent_handle] = 1
             else:
-                cost_dict[key] += 1
+                cost_dict[agent_handle] += 1
     makespan+=1
     render.render_env(show=True, frames=False, show_observations=False)
     time.sleep(0.15)

@@ -23,9 +23,9 @@ dependencies = [
     "matplotlib",
     "msgpack",
     "networkx",
+    "nicegui",
     "numpy",
     "pillow",
-    "pyglet",
     "recordtype",
 ]
 

@@ -24,7 +24,12 @@ class PILGL(GraphicsLayer):
     SELECTED_AGENT_LAYER = 4
     SELECTED_TARGET_LAYER = 5
 
-    def __init__(self, width, height, jupyter=False, screen_width=800, screen_height=600):
+    # The sprite artwork is 300x300. Cells larger than that are upscaling, which
+    # buys no detail - it just costs area. Treat it as the ceiling.
+    MAX_PIX_CELL = 300
+
+    def __init__(self, width, height, jupyter=False, screen_width=800, screen_height=600,
+                 cell_size=None):
         self.yxBase = (0, 0)
         self.linewidth = 4
         self.n_agent_colors = 1  # overridden in loadAgent
@@ -34,17 +39,21 @@ class PILGL(GraphicsLayer):
 
         self.background_grid = np.zeros(shape=(self.width, self.height))
 
-        if jupyter is False:
-            # NOTE: Currently removed the dependency on
-            #       screeninfo. We have to find an alternate
-            #       way to compute the screen width and height
-            #       In the meantime, we are harcoding the 800x600
-            #       assumption
-            self.screen_width = screen_width
-            self.screen_height = screen_height
+        self.screen_width = screen_width
+        self.screen_height = screen_height
+
+        if cell_size is not None:
+            # Explicit resolution: the canvas grows with the grid. Use when you
+            # want a specific level of detail (e.g. offline video frames).
+            self.nPixCell = int(max(1, min(cell_size, self.MAX_PIX_CELL)))
+        elif jupyter is False:
+            # Fit the grid to the given screen size. The canvas stays about the
+            # same size whatever the grid, so render cost stays bounded - a big
+            # grid just gets smaller cells, which is all a display of that size
+            # could show anyway.
             w = (self.screen_width - self.width - 10) / (self.width + 1 + self.linewidth)
             h = (self.screen_height - self.height - 10) / (self.height + 1 + self.linewidth)
-            self.nPixCell = int(max(1, np.ceil(min(w, h))))
+            self.nPixCell = int(max(1, min(np.ceil(min(w, h)), self.MAX_PIX_CELL)))
         else:
             self.nPixCell = 40
 
@@ -275,9 +284,10 @@ class PILSVG(PILGL):
     but for backward compatibility, and to not introduce any breaking changes at this point
     we are sticking to the legacy name of PILSVG (when in practice we are not using SVG anymore)
     """
-    def __init__(self, width, height, jupyter=False, screen_width=800, screen_height=600):
+    def __init__(self, width, height, jupyter=False, screen_width=800, screen_height=600,
+                 cell_size=None):
         oSuper = super()
-        oSuper.__init__(width, height, jupyter, screen_width, screen_height)
+        oSuper.__init__(width, height, jupyter, screen_width, screen_height, cell_size)
 
         self.lwAgents = []
         self.agents_prev = []
@@ -295,8 +305,7 @@ class PILSVG(PILGL):
             self.pil_from_png_file('flatland.png', "Selected_Target.png"))
 
     def process_events(self):
-        # No-op: PIL has no event loop. Backends with a real one (e.g. PGLGL)
-        # pump it in show().
+        # No-op: PIL has no event loop of its own to pump.
         pass
 
     def clear_rails(self):

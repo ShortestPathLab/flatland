@@ -72,7 +72,9 @@ class EnvCanvas():
         if behaviour is None:
             behaviour = AlwaysForward(env)
         self.behaviour = behaviour
-        self.oRT = RenderTool(env, show_debug=True)
+        # PILSVG, not WEB: this draws into the ipycanvas widget below via
+        # get_image(), so it must not stand up a render server of its own.
+        self.oRT = RenderTool(env, gl="PILSVG", show_debug=True)
 
         self.oCan = canvas.Canvas(size=(600,300))
         self.render()

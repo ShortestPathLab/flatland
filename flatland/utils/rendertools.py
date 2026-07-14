@@ -10,7 +10,7 @@ from recordtype import recordtype
 from flatland.envs.agent_utils import RailAgentStatus
 
 from flatland.utils.graphics_pil import PILGL, PILSVG
-from flatland.utils.graphics_pgl import PGLGL
+from flatland.utils.graphics_web import WEBGL
 
 
 # TODO: suggested renaming to RailEnvRenderTool, as it will only work with RailEnv!
@@ -23,15 +23,38 @@ class AgentRenderVariant(IntEnum):
     AGENT_SHOWS_OPTIONS_AND_BOX = 4
 
 
+# Graphics layers, by their `gl` name.
+#   WEB    - serves the env to a browser (default; works on headless machines)
+#   PILSVG - draws the sprite-based scene, but never displays it. For callers
+#            that only want get_image() / save_image(), e.g. the evaluator.
+#   PIL    - the older primitive (line/box) renderer, no sprites.
+# "PGL" is the retired pyglet window; it maps to WEB so old callers keep working.
+GL_NAMES = ["WEB", "PILSVG", "PIL", "PGL"]
+
+
 class RenderTool(object):
     """ RenderTool is a facade to a renderer.
-        (This was introduced for the Browser / JS renderer which has now been removed.)
     """
-    def __init__(self, env, gl="PGL", jupyter=False,
+    def __init__(self, env, gl="WEB", jupyter=False,
                  agent_render_variant=AgentRenderVariant.ONE_STEP_BEHIND,
-                 show_debug=False, clear_debug_text=True, screen_width=800, screen_height=600,
-                 host="localhost", port=None):
-
+                 show_debug=False, clear_debug_text=True,
+                 screen_width=None, screen_height=None, cell_size=None,
+                 host=None, port=None, wait_for_client=False,
+                 image_format=None, quality=None, max_fps=None):
+        """
+        screen_width/screen_height
+            The grid is scaled to fit these, so the canvas is about this size
+            whatever the grid dimensions - render cost stays bounded. Defaults
+            to 1600x1600 for WEB (a browser window is big; 800x600 looked soft)
+            and 800x600 for the PIL/PILSVG layers (unchanged).
+        cell_size
+            Overrides the above with an explicit pixel size per grid cell, so
+            the canvas grows with the grid. Capped at 300px, the size of the
+            source artwork. Useful for high-detail offline frames.
+        image_format / quality / max_fps
+            WEB only - see WEBGL. Control the live stream to the browser; they
+            do not affect get_image() or save_image(), which stay lossless.
+        """
         self.env = env
         self.frame_nr = 0
         self.start_time = time.time()
@@ -39,13 +62,20 @@ class RenderTool(object):
 
         self.agent_render_variant = agent_render_variant
 
-        if gl in ["PIL", "PILSVG", "PGL"]:
-            self.renderer = RenderLocal(env, gl, jupyter,
-                 agent_render_variant,
-                 show_debug, clear_debug_text, screen_width, screen_height)
-            self.gl = self.renderer.gl
-        else:
-            print("[", gl, "] not found, switch to PGL")
+        if gl not in GL_NAMES:
+            print("[", gl, "] not found, switch to WEB")
+            gl = "WEB"
+
+        is_web = gl in ("WEB", "PGL")
+        screen_width = screen_width or (1600 if is_web else 800)
+        screen_height = screen_height or (1600 if is_web else 600)
+
+        self.renderer = RenderLocal(env, gl, jupyter,
+             agent_render_variant,
+             show_debug, clear_debug_text, screen_width, screen_height, cell_size=cell_size,
+             host=host, port=port, wait_for_client=wait_for_client,
+             image_format=image_format, quality=quality, max_fps=max_fps)
+        self.gl = self.renderer.gl
 
     def render_env(self,
                    show=False,  # whether to call matplotlib show() or equivalent after completion
@@ -76,24 +106,18 @@ class RenderTool(object):
         self.renderer.update_background()
     
     def get_endpoint_URL(self):
-        """ Returns a string URL for the root of the HTTP server
-            TODO: Need to update this work work on a remote server!  May be tricky...
+        """ URL of the page serving this environment, or None for the
+            non-displaying graphics layers (PIL / PILSVG).
         """
-        #return "http://localhost:{}".format(self.renderer.get_port())
-        if hasattr(self.renderer, "get_endpoint_url"):
-            return self.renderer.get_endpoint_url()
-        else:
-            print("Attempt to get_endpoint_url from RenderTool - only supported with BROWSER")
-            return None
+        gl = self.gl
+        if isinstance(gl, WEBGL):
+            return f"http://{gl.host}:{gl.port}/"
+        return None
 
     def get_image(self):
-        """ 
         """
-        if hasattr(self.renderer, "gl"):
-            return self.renderer.gl.get_image()
-        else:
-            print("Attempt to retrieve image from RenderTool - not supported with BROWSER")
-            return None
+        """
+        return self.gl.get_image()
 
 
 class RenderBase(object):
@@ -126,7 +150,7 @@ class RenderLocal(RenderBase):
     """ Class to render the RailEnv and agents.
         Uses two layers, layer 0 for rails (mostly static), layer 1 for agents etc (dynamic)
         The lower / rail layer 0 is only redrawn after set_new_rail() has been called.
-        Created with a "GraphicsLayer" or gl - now either PIL or PILSVG
+        Created with a "GraphicsLayer" or gl - one of WEB, PILSVG or PIL
     """
     visit = recordtype("visit", ["rc", "iDir", "iDepth", "prev"])
 
@@ -141,9 +165,11 @@ class RenderLocal(RenderBase):
     theta = np.linspace(0, np.pi / 2, 5)
     arc = array([np.cos(theta), np.sin(theta)]).T  # from [1,0] to [0,1]
 
-    def __init__(self, env, gl="PILSVG", jupyter=False,
+    def __init__(self, env, gl="WEB", jupyter=False,
                  agent_render_variant=AgentRenderVariant.ONE_STEP_BEHIND,
-                 show_debug=False, clear_debug_text=True, screen_width=800, screen_height=600):
+                 show_debug=False, clear_debug_text=True, screen_width=800, screen_height=600,
+                 cell_size=None, host=None, port=None, wait_for_client=False,
+                 image_format=None, quality=None, max_fps=None):
 
         self.env = env
         self.frame_nr = 0
@@ -152,17 +178,23 @@ class RenderLocal(RenderBase):
 
         self.agent_render_variant = agent_render_variant
 
+        if gl == "PGL":  # retired pyglet window
+            gl = "WEB"
         self.gl_str = gl
 
         if gl == "PIL":
-            self.gl = PILGL(env.width, env.height, jupyter, screen_width=screen_width, screen_height=screen_height)
+            self.gl = PILGL(env.width, env.height, jupyter, screen_width=screen_width,
+                            screen_height=screen_height, cell_size=cell_size)
         elif gl == "PILSVG":
-            self.gl = PILSVG(env.width, env.height, jupyter, screen_width=screen_width, screen_height=screen_height)
+            self.gl = PILSVG(env.width, env.height, jupyter, screen_width=screen_width,
+                             screen_height=screen_height, cell_size=cell_size)
         else:
-            if gl != "PGL":
-                print("[", gl, "] not found, switch to PGL, PILSVG")
-                print("Using PGL")
-            self.gl = PGLGL(env.width, env.height, jupyter, screen_width=screen_width, screen_height=screen_height)
+            kwargs = {k: v for k, v in
+                      dict(image_format=image_format, quality=quality, max_fps=max_fps).items()
+                      if v is not None}
+            self.gl = WEBGL(env.width, env.height, jupyter, screen_width=screen_width,
+                            screen_height=screen_height, cell_size=cell_size,
+                            host=host, port=port, wait_for_client=wait_for_client, **kwargs)
 
         self.new_rail = True
         self.show_debug = show_debug
@@ -521,8 +553,9 @@ class RenderLocal(RenderBase):
             (Use show=False from a Jupyter notebook with %matplotlib inline)
         """
 
-        # if type(self.gl) is PILSVG:
-        if self.gl_str in ["PILSVG", "PGL"]:
+        # Both sprite-based layers (WEBGL subclasses PILSVG); "PIL" is the
+        # older primitive renderer and takes the other path.
+        if self.gl_str in ["PILSVG", "WEB"]:
             return self.render_env_svg(show=show,
                                 show_observations=show_observations,
                                 show_predictions=show_predictions,

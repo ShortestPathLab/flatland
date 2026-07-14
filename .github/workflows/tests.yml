@@ -1,0 +1,42 @@
+name: tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The renderer and the notebooks need a display and native image libraries.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb graphviz libgraphviz-dev xdg-utils libcairo2-dev libjpeg-dev libgif-dev
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # uv reads .python-version and provisions the interpreter itself.
+      - name: Sync dependencies
+        run: uv sync --locked
+
+      - name: Lint
+        run: uv run ruff check flatland tests examples benchmarks
+
+      - name: Typecheck
+        run: uv run pyright
+
+      - name: Test
+        run: xvfb-run uv run pytest -v
+
+      - name: Run examples
+        run: xvfb-run uv run python benchmarks/run_all_examples.py
+
+      - name: Run notebooks
+        run: xvfb-run uv run python notebooks/run_all_notebooks.py

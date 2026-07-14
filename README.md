@@ -3,24 +3,16 @@
 
 ![Flatland](https://i.imgur.com/0rnbSLY.gif)
 
-<p style="text-align:center">
-<img alt="repository" src="https://gitlab.aicrowd.com/flatland/flatland/badges/master/pipeline.svg">
-<img alt="discord" src="https://gitlab.aicrowd.com/flatland/flatland/badges/master/coverage.svg">
-</p>
+Flatland is an open-source toolkit for developing and comparing multi-agent path finding (MAPF) algorithms in little
+(or ridiculously large!) gridworlds. Trains move on a grid of rails, each with its own start and target, and the hard
+part is what happens when their paths conflict: rails restrict where a train may go next, trains block one another, and
+they break down at inconvenient moments.
 
-Flatland is a open-source toolkit for developing and comparing Multi Agent Reinforcement Learning algorithms in little (or ridiculously large!) gridworlds.
+This repository is maintained by [ShortestPathLab](https://github.com/ShortestPathLab) and is used to teach
+[FIT5222 Planning and Automated Reasoning](https://handbook.monash.edu/current/units/FIT5222) at Monash University.
 
-[The official documentation](http://flatland.aicrowd.com/) contains full details about the environment and problem statement
-
-Flatland is tested with Python 3.14 on modern versions of macOS, Linux and Windows. You may encounter problems with graphical rendering if you use WSL. Your [contribution is welcome](https://flatland.aicrowd.com/misc/contributing.html) if you can help with this!  
-
-🏆 Challenges
----
-
-This library was developed specifically for the AIcrowd [Flatland challenges](http://flatland.aicrowd.com/research/top-challenge-solutions.html) in which we strongly encourage you to take part in!
-
-- [NeurIPS 2020 Challenge](https://www.aicrowd.com/challenges/neurips-2020-flatland-challenge/)
-- [2019 Challenge](https://www.aicrowd.com/challenges/flatland-challenge)
+Flatland is tested with Python 3.14 on modern versions of macOS, Linux and Windows. You may encounter problems with
+graphical rendering if you use WSL.
 
 📦 Setup
 ---
@@ -31,21 +23,19 @@ Flatland is developed as a [uv](https://docs.astral.sh/uv/) project. Install uv 
 [official instructions](https://docs.astral.sh/uv/getting-started/installation/) — you do not need to install Python
 yourself, as uv reads `.python-version` and provisions the right interpreter (currently 3.14.6) for you.
 
-### Stable release
+### Install
 
-Install Flatland from PyPI:
-
-```console
-$ pip install flatland-rl
-```
-
-Or add it to an existing uv project:
+Flatland is not published to a package index. Add it to an existing uv project straight from GitHub:
 
 ```console
-$ uv add flatland-rl
+$ uv add git+https://github.com/ShortestPathLab/flatland
 ```
 
-This is the preferred method to install Flatland, as it will always install the most recent stable release.
+The distribution is named `flatland-spl`, but the package you import is `flatland`:
+
+```python
+from flatland.envs.rail_env import RailEnv
+```
 
 ### Optional extras
 
@@ -53,25 +43,19 @@ The base install gives you everything needed to build, step and render an enviro
 
 | Extra | Adds | Needed for |
 | --- | --- | --- |
-| `evaluator` | crowdai-api, redis, pandas, timeout-decorator, msgpack-numpy | `flatland.evaluators` and `flatland evaluate`, used to grade challenge submissions |
-| `notebooks` | ipycanvas, ipython, ipywidgets | `flatland.utils.jupyter_utils` and `flatland.utils.editor`, the in-notebook helpers |
-| `aws` | boto3 | S3 upload support in the evaluation service |
-
-Install them individually or together:
+| `native` | pywebview | Opening the renderer in a desktop window instead of a browser tab |
+| `notebooks` | graphviz, ipycanvas, ipyevents, ipython, ipywidgets | `flatland.utils.jupyter_utils` and `flatland.utils.editor`, the in-notebook helpers |
 
 ```console
-$ pip install 'flatland-rl[evaluator]'
-$ pip install 'flatland-rl[evaluator,notebooks]'
+$ uv add "flatland-spl[notebooks] @ git+https://github.com/ShortestPathLab/flatland"
 ```
 
 ### From sources
 
-The Flatland code source is available from [AIcrowd gitlab](https://gitlab.aicrowd.com/flatland/flatland).
-
-Clone the public repository:
+Clone the repository:
 
 ```console
-$ git clone git@gitlab.aicrowd.com:flatland/flatland.git
+$ git clone https://github.com/ShortestPathLab/flatland.git
 $ cd flatland
 ```
 
@@ -96,25 +80,36 @@ You can also run the full test suite:
 $ uv run pytest
 ```
 
-👥 Credits
+📖 Documentation
 ---
 
-This library was developed by [SBB](https://www.sbb.ch/en/), [Deutsche Bahn](https://www.deutschebahn.com/), [AIcrowd](https://www.aicrowd.com/) and [numerous contributors](http://flatland.aicrowd.com/misc/credits.html) and AIcrowd research fellows from the AIcrowd community. 
+The [tutorials](docs/tutorials/) are the best starting point: they cover building an environment, writing a custom
+observation builder and predictor, and the stochastic and multi-speed features. The [FAQ](FAQ.md) covers the
+environment, the agent attributes and malfunctions, and [docs/specifications/](docs/specifications/) describes the
+railway model, the rendering and the visualisation in more depth.
+
+The docs are plain Markdown and reStructuredText, read directly from this repository — there is no separate site to
+build.
 
 ➕ Contributions
 ---
-Please follow the [Contribution Guidelines](https://flatland.aicrowd.com/misc/contributing.html) for more details on how you can successfully contribute to the project. We enthusiastically look forward to your contributions!
 
-💬 Communication
+Please follow the [Contribution Guidelines](CONTRIBUTING.rst) for more details on how you can successfully contribute
+to the project. Issues and pull requests are welcome on
+[GitHub](https://github.com/ShortestPathLab/flatland/issues).
+
+This repository is maintained by Kevin Zheng (<kevin.zheng@monash.edu>). If you run into any problems, please open an
+issue or get in touch.
+
+📜 History and credits
 ---
 
-* [Discord Channel](https://discord.com/invite/hCR3CZG)
-* [Discussion Forum](https://discourse.aicrowd.com/c/neurips-2020-flatland-challenge)
-* [Issue Tracker](https://gitlab.aicrowd.com/flatland/flatland/issues/)
+Flatland began as a joint project of [SBB](https://www.sbb.ch/en/), [Deutsche Bahn](https://www.deutschebahn.com/) and
+[AIcrowd](https://www.aicrowd.com/), built for a series of public multi-agent reinforcement learning challenges. This
+repository is a fork of that original work, maintained independently by ShortestPathLab and repositioned around
+multi-agent path finding for teaching and research. The reinforcement learning challenge scaffolding — the submission
+and grading service in particular — has been removed, and the environment itself has been substantially reworked for
+performance.
 
-🔗 Partners
----
-
-<a href="https://sbb.ch" target="_blank" style="margin-right:25px"><img src="https://i.imgur.com/OSCXtde.png" alt="SBB" width="200"/></a> 
-<a href="https://www.deutschebahn.com/" target="_blank" style="margin-right:25px"><img src="https://i.imgur.com/pjTki15.png" alt="DB"  width="200"/></a>
-<a href="https://www.aicrowd.com" target="_blank"><img src="https://avatars1.githubusercontent.com/u/44522764?s=200&v=4" alt="AICROWD"  width="200"/></a>
+Thanks to the original authors and [numerous contributors](AUTHORS.md), whose work this builds on. Flatland is
+distributed under the terms of the [LICENSE](LICENSE) it has always carried.

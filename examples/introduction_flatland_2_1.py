@@ -24,7 +24,7 @@ from flatland.utils.rendertools import RenderTool, AgentRenderVariant
 # - Agents start outside of the environment and enter at their own time
 # - Agents leave the environment after they have reached their goal
 # Use the new sparse_rail_generator to generate feasible network configurations with corresponding tasks
-# Training on simple small tasks is the best way to get familiar with the environment
+# Starting on simple small tasks is the best way to get familiar with the environment
 # We start by importing the necessary rail and schedule generators
 # The rail generator will generate the railway infrastructure
 # The schedule generator will assign tasks to all the agent within the railway network
@@ -108,7 +108,7 @@ env_renderer = RenderTool(env,
 
 # nv_renderer.render_env(show=True)
 # time.sleep(2)
-# Import your own Agent or use RLlib to train agents on Flatland
+# Plug in your own planner here
 # As an example we use a random agent instead
 class RandomAgent:
 
@@ -237,7 +237,7 @@ print("========================================")
 for info in information['action_required']:
     print("Agent {} needs to submit an action.".format(info))
 
-# We recommend that you monitor the malfunction data and the action required in order to optimize your training
+# We recommend that you monitor the malfunction data and the action required in order to plan effectively
 # and controlling code.
 
 # Let us now look at an episode playing out with random actions performed
@@ -248,7 +248,6 @@ print("\nStart episode...")
 env_renderer.reset()
 
 # Here you can also further enhance the provided observation by means of normalization
-# See training navigation example in the baseline repository
 
 
 score = 0

@@ -1,6 +1,7 @@
 # Level Generation Tutorial
 
-We are currently working on different new level generators and you can expect that the levels in the submission testing will not all come from just one but rather different level generators to be sure that the controllers can handle any railway specific challenge.
+Flatland ships with several level generators. A planner is worth testing against more than one of them, to be sure it can
+handle any railway specific problem rather than the quirks of a single generator.
 
 Let's have a look at the `sparse_rail_generator`.
 
@@ -71,4 +72,4 @@ and here with `grid_mode=True`
 
 ## Example code
 
-To see all the changes in action you can just run the `flatland_example_2_0.py` file in the examples folder. The file can be found [here](https://gitlab.aicrowd.com/flatland/flatland/blob/master/examples/flatland_2_0_example.py).
+To see all the changes in action you can just run the `flatland_example_2_0.py` file in the examples folder. The file can be found [here](https://github.com/ShortestPathLab/flatland/blob/master/examples/flatland_2_0_example.py).

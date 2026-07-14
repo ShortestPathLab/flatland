@@ -1,10 +1,11 @@
 from enum import IntEnum
 from itertools import starmap
-from typing import Tuple, Optional, NamedTuple
+from typing import Any, Dict, List, Tuple, Optional, NamedTuple
 
 from attr import attrs, attrib, Factory
 
 from flatland.core.grid.grid4 import Grid4TransitionsEnum
+from flatland.core.grid.grid_utils import IntVector2D
 from flatland.envs.schedule_utils import Schedule
 
 
@@ -15,59 +16,65 @@ class RailAgentStatus(IntEnum):
     DONE_REMOVED = 3  # removed from grid (position is None) -> prediction is None
 
 
-Agent = NamedTuple('Agent', [('initial_position', Tuple[int, int]),
+# speed_data and malfunction_data are heterogeneous: they hold floats, ints, bools and
+# RailEnvActions, keyed by name.
+AgentSpeedData = Dict[str, Any]
+AgentMalfunctionData = Dict[str, Any]
+
+Agent = NamedTuple('Agent', [('initial_position', IntVector2D),
                              ('initial_direction', Grid4TransitionsEnum),
                              ('direction', Grid4TransitionsEnum),
-                             ('target', Tuple[int, int]),
+                             ('target', IntVector2D),
                              ('moving', bool),
-                             ('speed_data', dict),
-                             ('malfunction_data', dict),
+                             ('speed_data', AgentSpeedData),
+                             ('malfunction_data', AgentMalfunctionData),
                              ('handle', int),
                              ('status', RailAgentStatus),
-                             ('position', Tuple[int, int]),
-                             ('old_direction', Grid4TransitionsEnum),
-                             ('old_position', Tuple[int, int])])
+                             ('position', Optional[IntVector2D]),
+                             ('old_direction', Optional[Grid4TransitionsEnum]),
+                             ('old_position', Optional[IntVector2D])])
 
 
 @attrs
 class EnvAgent:
-    initial_position = attrib(type=Tuple[int, int])
-    initial_direction = attrib(type=Grid4TransitionsEnum)
-    direction = attrib(type=Grid4TransitionsEnum)
-    target = attrib(type=Tuple[int, int])
-    moving = attrib(default=False, type=bool)
+    initial_position: IntVector2D = attrib()
+    initial_direction: Grid4TransitionsEnum = attrib()
+    direction: Grid4TransitionsEnum = attrib()
+    target: IntVector2D = attrib()
+    moving: bool = attrib(default=False)
 
     # speed_data: speed is added to position_fraction on each moving step, until position_fraction>=1.0,
     # after which 'transition_action_on_cellexit' is executed (equivalent to executing that action in the previous
     # cell if speed=1, as default)
     # N.B. we need to use factory since default arguments are not recreated on each call!
-    speed_data = attrib(
+    speed_data: AgentSpeedData = attrib(
         default=Factory(lambda: dict({'position_fraction': 0.0, 'speed': 1.0, 'transition_action_on_cellexit': 0})))
 
     # if broken>0, the agent's actions are ignored for 'broken' steps
     # number of time the agent had to stop, since the last time it broke down
-    malfunction_data = attrib(
+    malfunction_data: AgentMalfunctionData = attrib(
         default=Factory(
             lambda: dict({'malfunction': 0, 'malfunction_rate': 0, 'next_malfunction': 0, 'nr_malfunctions': 0,
                           'moving_before_malfunction': False})))
 
-    handle = attrib(default=None)
+    handle: int = attrib(default=None)
 
-    status = attrib(default=RailAgentStatus.READY_TO_DEPART, type=RailAgentStatus)
-    position = attrib(default=None, type=Optional[Tuple[int, int]])
+    status: RailAgentStatus = attrib(default=RailAgentStatus.READY_TO_DEPART)
+    # agents which have not departed (or which have been removed) have no position on the grid
+    position: Optional[IntVector2D] = attrib(default=None)
 
     # used in rendering
-    old_direction = attrib(default=None)
-    old_position = attrib(default=None)
-    
-    deadline = attrib(default=None, type=int)
+    old_direction: Optional[Grid4TransitionsEnum] = attrib(default=None)
+    old_position: Optional[IntVector2D] = attrib(default=None)
+
+    deadline: Optional[int] = attrib(default=None)
 
     def reset(self):
         """
         Resets the agents to their initial values of the episode
         """
         self.position = None
-        # TODO: set direction to None: https://gitlab.aicrowd.com/flatland/flatland/issues/280
+        # TODO: set direction to None
         self.direction = self.initial_direction
         self.status = RailAgentStatus.READY_TO_DEPART
         self.old_position = None
@@ -91,7 +98,7 @@ class EnvAgent:
                      position=self.position, old_direction=self.old_direction, old_position=self.old_position)
 
     @classmethod
-    def from_schedule(cls, schedule: Schedule):
+    def from_schedule(cls, schedule: Schedule) -> List["EnvAgent"]:
         """ Create a list of EnvAgent from lists of positions, directions and targets
         """
         speed_datas = []
@@ -119,8 +126,8 @@ class EnvAgent:
                                           range(len(schedule.agent_positions)))))
 
     @classmethod
-    def load_legacy_static_agent(cls, static_agents_data: Tuple):
-        agents = []
+    def load_legacy_static_agent(cls, static_agents_data: Tuple) -> List["EnvAgent"]:
+        agents: List["EnvAgent"] = []
         for i, static_agent in enumerate(static_agents_data):
             agent = EnvAgent(initial_position=static_agent[0], initial_direction=static_agent[1],
                              direction=static_agent[1], target=static_agent[2], moving=static_agent[3],

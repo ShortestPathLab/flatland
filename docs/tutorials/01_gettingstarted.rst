@@ -113,17 +113,16 @@ following code. Also, tree observation data is displayed by RenderTool by defaul
 
 The complete code for this part of the Getting Started guide can be found in
 
-* `examples/simple_example_1.py <https://gitlab.aicrowd.com/flatland/flatland/blob/master/examples/simple_example_1.py>`_
-* `examples/simple_example_2.py <https://gitlab.aicrowd.com/flatland/flatland/blob/master/examples/simple_example_2.py>`_
+* `examples/simple_example_1.py <https://github.com/ShortestPathLab/flatland/blob/master/examples/simple_example_1.py>`_
+* `examples/simple_example_2.py <https://github.com/ShortestPathLab/flatland/blob/master/examples/simple_example_2.py>`_
 
 
-Part 2 : Training a Simple an Agent on Flatland
+Part 2 : Running a Simple Policy on Flatland
 ---------------------------------------------------------
 
-This is a brief tutorial on how to train an agent on Flatland.
-Here we use a simple random agent to illustrate the process on how to interact with the environment.
-The corresponding code can be found in examples/training_example.py and in the baselines repository
-you find a tutorial to train a `DQN <https://arxiv.org/abs/1312.5602>`_ agent to solve the navigation task.
+This is a brief tutorial on how to drive agents around Flatland.
+Here we use a simple random policy to illustrate the process on how to interact with the environment.
+The corresponding code can be found in examples/random_policy_example.py.
 
 We start by importing the necessary Flatland libraries
 
@@ -133,7 +132,7 @@ We start by importing the necessary Flatland libraries
     from flatland.envs.schedule_generators import complex_schedule_generator
     from flatland.envs.rail_env import RailEnv
 
-The complex_rail_generator is used in order to guarantee feasible railway network configurations for training.
+The complex_rail_generator is used in order to guarantee feasible railway network configurations.
 Next we configure the difficulty of our task by modifying the complex_rail_generator parameters.
 
 .. code-block:: python
@@ -154,16 +153,15 @@ By varying the number of start and goal connections (nr_start_goal) and the numb
 the number of alternative paths of each agents can be modified. The more possible paths an agent has to reach its target the easier the task becomes.
 Here we don't specify any observation builder but rather use the standard tree observation. If you would like to use a custom obervation please follow
 the instructions in the next tutorial.
-Feel free to vary these parameters to see how your own agent holds up on different setting. The evalutation set of railway configurations will
-cover the whole spectrum from easy to complex tasks.
+Feel free to vary these parameters to see how your own planner holds up on different settings.
 
-Once we are set with the environment we can load our preferred agent from either RLlib or any other ressource. Here we use a random agent to illustrate the code.
+Once we are set with the environment we can plug in our planner. Here we use a random policy to illustrate the code.
 
 .. code-block:: python
 
-    agent = RandomAgent(state_size, action_size)
+    policy = RandomPolicy(state_size, action_size)
 
-We start every trial by resetting the environment
+We start every episode by resetting the environment
 
 .. code-block:: python
 
@@ -175,7 +173,7 @@ In order for the environment to step forward in time we need a dictionar of acti
 .. code-block:: python
 
         for handle in range(env.get_num_agents()):
-            action = agent.act(obs[handle])
+            action = policy.act(obs[handle])
             action_dict.update({handle: action})
 
 This dictionary is then passed to the environment which checks the validity of all actions and update the environment state.
@@ -185,6 +183,6 @@ This dictionary is then passed to the environment which checks the validity of a
     next_obs, all_rewards, done, _ = env.step(action_dict)
 
 The environment returns an array of new observations, reward dictionary for all agents as well as a flag for which agents are done.
-This information can be used to update the policy of your agent and if done['__all__'] == True the episode terminates.
+This information can be used by your planner to decide on the next actions, and if done['__all__'] == True the episode terminates.
 
-The full source code of this example can be found in `examples/training_example.py <https://gitlab.aicrowd.com/flatland/flatland/blob/master/examples/training_example.py>`_.
+The full source code of this example can be found in `examples/random_policy_example.py <https://github.com/ShortestPathLab/flatland/blob/master/examples/random_policy_example.py>`_.

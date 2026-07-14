@@ -45,7 +45,7 @@ The stock `ShortestPathPredictorForRailEnv` now respects the different agent spe
         - 1st channel -> other agents direction at their positions
         - 2nd channel -> all agent malfunction duration at their positions
         - 3rd channel -> all agent fractional speeds at their positions
-- `LocalObsForRailEnv` was not update to Flatland 2.0 because it was never used by participants of the challenge.
+- `LocalObsForRailEnv` was not update to Flatland 2.0 because it was never used.
 
 
 ### Changes in level generation
@@ -73,9 +73,9 @@ ScheduleGenerator = Callable[[GridTransitionMap, int, Optional[Any]], ScheduleGe
     - Multi-speed introduces the challenge of ordering the trains correctly when traveling in the same direction.
 - Agents always travel at their full speed when moving.
 
-To set up multiple speeds you have to modify the `agent.speed_data` within your `schedule_generator`. See [this file](https://gitlab.aicrowd.com/flatland/flatland/blob/master/flatland/envs/schedule_generators.py#L59) for a good example.
+To set up multiple speeds you have to modify the `agent.speed_data` within your `schedule_generator`. See [this file](https://github.com/ShortestPathLab/flatland/blob/master/flatland/envs/schedule_generators.py#L59) for a good example.
 
-**ATTENTION** multi speed means that the agents actions are not registered on every time step. Only at new cell entry can new actions be chosen! Beware to respect this with your controller as actions are only important at the specific time steps! This is shown as an example in the [navigation training](https://gitlab.aicrowd.com/flatland/baselines/blob/master/torch_training/training_navigation.py#L163)
+**ATTENTION** multi speed means that the agents actions are not registered on every time step. Only at new cell entry can new actions be chosen! Beware to respect this with your controller as actions are only important at the specific time steps!
 
 ### Stochastic events
 Just like in real-worl transportation systems we introduced stochastic events to disturb normal traffic flow. Currently we implemented a malfunction process that stops agents at random time intervalls for a random time of duration.
@@ -93,10 +93,6 @@ The duration of a malfunction is uniformly drawn from the intervall `[min_durati
 
 **!!!!IMPORTANT!!!!** Once a malfunction duration has finished, the agent will **automatically** resume movement. This is important because otherwise it can get stuck in fractional positions and your code might forget to restart the agent at the first possible time. Therefore this has been automated. You can however stop the agent again at the next cell. This might in rare occasions lead to unexpected behavior, we are looking into this and will push a fix soon.
 
-
-## Baselines repository
-
-The baselines repository is not yet fully updated to handle multi-speed and stochastic events. Training needs to be modified to omitt all states inbetween the states where an agent can chose an action. Simple navigation training is already up to date. See [here](https://gitlab.aicrowd.com/flatland/baselines/blob/master/torch_training/training_navigation.py) for more details.
 
 Changes since Flatland 0.2
 --------------------------

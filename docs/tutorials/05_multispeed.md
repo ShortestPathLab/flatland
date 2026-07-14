@@ -28,7 +28,7 @@ This action is then executed when a step to the next cell is valid. For example
 
 - Agent enters switch and choses to deviate left. Agent fractional speed is 1/4 and thus the agent will take 4 time steps to complete its journey through the cell. On the 4th time step the agent will leave the cell deviating left as chosen at the entry of the cell.
     - All actions chosen by the agent during its travels within a cell are ignored
-    - Agents can make observations at any time step. Make sure to discard observations without any information. See this [example](https://gitlab.aicrowd.com/flatland/baselines/blob/master/torch_training/training_navigation.py) for a simple implementation.
+    - Agents can make observations at any time step. Make sure to discard observations without any information.
 - The environment checks if agent is allowed to move to next cell only at the time of the switch to the next cell
 
 In your controller, you can check whether an agent requires an action by checking `info`:
@@ -49,7 +49,7 @@ The separation between rail generator and schedule generator reflects the organi
 - Infrastructure Manager (IM): is responsible for the layout and maintenance of tracks
 - Railway Undertaking (RU): operates trains on the infrastructure
 Usually, there is a third organisation, which ensures discrimination-free access to the infrastructure for concurrent requests for the infrastructure in a **schedule planning phase**.
-However, in the **Flat**land challenge, we focus on the re-scheduling problem during live operations.
+However, in **Flat**land we focus on the re-scheduling problem during live operations.
 
 Technically,
 ```python
@@ -130,4 +130,4 @@ The environment's `reset` takes care of applying the two generators:
 
 ## Example code
 
-To see all the changes in action you can just run the `flatland_example_2_0.py` file in the examples folder. The file can be found [here](https://gitlab.aicrowd.com/flatland/flatland/blob/master/examples/flatland_2_0_example.py).
+To see all the changes in action you can just run the `flatland_example_2_0.py` file in the examples folder. The file can be found [here](https://github.com/ShortestPathLab/flatland/blob/master/examples/flatland_2_0_example.py).

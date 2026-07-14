@@ -1,26 +1,27 @@
 import math
-from typing import Dict, List, Optional, Tuple, Set
+from typing import Dict, List, MutableSet, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 from flatland.core.grid.grid4 import Grid4TransitionsEnum
 from flatland.core.grid.grid4_utils import get_new_position
+from flatland.core.grid.grid_utils import IntVector2D
 from flatland.core.transition_map import GridTransitionMap
-from flatland.envs.agent_utils import RailAgentStatus
+from flatland.envs.agent_utils import EnvAgent, RailAgentStatus
 from flatland.envs.distance_map import DistanceMap
-from flatland.envs.rail_env import RailEnvNextAction, RailEnvActions, RailEnv
+from flatland.envs.rail_env import RailEnvGridPos, RailEnvNextAction, RailEnvActions, RailEnv
 from flatland.envs.rail_trainrun_data_structures import Waypoint
 from flatland.utils.ordered_set import OrderedSet
 
 
 def get_valid_move_actions_(agent_direction: Grid4TransitionsEnum,
-                            agent_position: Tuple[int, int],
-                            rail: GridTransitionMap) -> Set[RailEnvNextAction]:
+                            agent_position: IntVector2D,
+                            rail: GridTransitionMap) -> MutableSet[RailEnvNextAction]:
     """
     Get the valid move actions (forward, left, right) for an agent.
 
-    TODO https://gitlab.aicrowd.com/flatland/flatland/issues/299 The implementation could probably be more efficient
+    TODO The implementation could probably be more efficient
     and more elegant. But given the few calls this has no priority now.
 
     Parameters
@@ -36,7 +37,7 @@ def get_valid_move_actions_(agent_direction: Grid4TransitionsEnum,
         Possible move actions (forward,left,right) and the next position/direction they lead to.
         It is not checked that the next cell is free.
     """
-    valid_actions: Set[RailEnvNextAction] = OrderedSet()
+    valid_actions: MutableSet[RailEnvNextAction] = OrderedSet()
     possible_transitions = rail.get_transitions(*agent_position, agent_direction)
     num_transitions = np.count_nonzero(possible_transitions)
     # Start from the current orientation, and see which transitions are available;
@@ -44,18 +45,18 @@ def get_valid_move_actions_(agent_direction: Grid4TransitionsEnum,
     # If only one transition is possible, the forward branch is aligned with it.
     if rail.is_dead_end(agent_position):
         action = RailEnvActions.MOVE_FORWARD
-        exit_direction = (agent_direction + 2) % 4
+        exit_direction = Grid4TransitionsEnum((agent_direction + 2) % 4)
         if possible_transitions[exit_direction]:
             new_position = get_new_position(agent_position, exit_direction)
-            valid_actions.add(RailEnvNextAction(action, new_position, exit_direction))
+            valid_actions.add(RailEnvNextAction(action, RailEnvGridPos(*new_position), exit_direction))
     elif num_transitions == 1:
         action = RailEnvActions.MOVE_FORWARD
-        for new_direction in [(agent_direction + i) % 4 for i in range(-1, 2)]:
+        for new_direction in [Grid4TransitionsEnum((agent_direction + i) % 4) for i in range(-1, 2)]:
             if possible_transitions[new_direction]:
                 new_position = get_new_position(agent_position, new_direction)
-                valid_actions.add(RailEnvNextAction(action, new_position, new_direction))
+                valid_actions.add(RailEnvNextAction(action, RailEnvGridPos(*new_position), new_direction))
     else:
-        for new_direction in [(agent_direction + i) % 4 for i in range(-1, 2)]:
+        for new_direction in [Grid4TransitionsEnum((agent_direction + i) % 4) for i in range(-1, 2)]:
             if possible_transitions[new_direction]:
                 if new_direction == agent_direction:
                     action = RailEnvActions.MOVE_FORWARD
@@ -67,19 +68,19 @@ def get_valid_move_actions_(agent_direction: Grid4TransitionsEnum,
                     raise Exception("Illegal state")
 
                 new_position = get_new_position(agent_position, new_direction)
-                valid_actions.add(RailEnvNextAction(action, new_position, new_direction))
+                valid_actions.add(RailEnvNextAction(action, RailEnvGridPos(*new_position), new_direction))
     return valid_actions
 
 
 def get_new_position_for_action(
-    agent_position: Tuple[int, int],
+    agent_position: IntVector2D,
     agent_direction: Grid4TransitionsEnum,
     action: RailEnvActions,
-    rail: GridTransitionMap) -> Tuple[int, int, int]:
+    rail: GridTransitionMap) -> Optional[Tuple[IntVector2D, Grid4TransitionsEnum]]:
     """
     Get the next position for this action.
 
-    TODO https://gitlab.aicrowd.com/flatland/flatland/issues/299 The implementation could probably be more efficient
+    TODO The implementation could probably be more efficient
     and more elegant. But given the few calls this has no priority now.
 
     Parameters
@@ -92,8 +93,8 @@ def get_new_position_for_action(
 
     Returns
     -------
-    Tuple[int,int,int]
-        row, column, direction
+    Optional[Tuple[IntVector2D, Grid4TransitionsEnum]]
+        (row, column) and direction, or None if the action is not possible.
     """
     possible_transitions = rail.get_transitions(*agent_position, agent_direction)
     num_transitions = np.count_nonzero(possible_transitions)
@@ -102,20 +103,20 @@ def get_new_position_for_action(
     # If only one transition is possible, the forward branch is aligned with it.
     if rail.is_dead_end(agent_position):
         valid_action = RailEnvActions.MOVE_FORWARD
-        exit_direction = (agent_direction + 2) % 4
+        exit_direction = Grid4TransitionsEnum((agent_direction + 2) % 4)
         if possible_transitions[exit_direction]:
             new_position = get_new_position(agent_position, exit_direction)
             if valid_action == action:
                 return new_position, exit_direction
     elif num_transitions == 1:
         valid_action = RailEnvActions.MOVE_FORWARD
-        for new_direction in [(agent_direction + i) % 4 for i in range(-1, 2)]:
+        for new_direction in [Grid4TransitionsEnum((agent_direction + i) % 4) for i in range(-1, 2)]:
             if possible_transitions[new_direction]:
                 new_position = get_new_position(agent_position, new_direction)
                 if valid_action == action:
                     return new_position, new_direction
     else:
-        for new_direction in [(agent_direction + i) % 4 for i in range(-1, 2)]:
+        for new_direction in [Grid4TransitionsEnum((agent_direction + i) % 4) for i in range(-1, 2)]:
             if possible_transitions[new_direction]:
                 if new_direction == agent_direction:
                     valid_action = RailEnvActions.MOVE_FORWARD
@@ -132,18 +133,19 @@ def get_new_position_for_action(
                     if valid_action == action:
                         new_position = get_new_position(agent_position, new_direction)
                         return new_position, new_direction
+    return None
 
 
 def get_action_for_move(
-    agent_position: Tuple[int, int],
+    agent_position: IntVector2D,
     agent_direction: Grid4TransitionsEnum,
-    next_agent_position: Tuple[int, int],
+    next_agent_position: IntVector2D,
     next_agent_direction: int,
     rail: GridTransitionMap) -> Optional[RailEnvActions]:
     """
     Get the action (if any) to move from a position and direction to another.
 
-    TODO https://gitlab.aicrowd.com/flatland/flatland/issues/299 The implementation could probably be more efficient
+    TODO The implementation could probably be more efficient
     and more elegant. But given the few calls this has no priority now.
 
     Parameters
@@ -224,12 +226,19 @@ def get_shortest_paths(distance_map: DistanceMap, max_depth: Optional[int] = Non
         Dict[int, Optional[List[WalkingElement]]]
 
     """
-    shortest_paths = dict()
+    shortest_paths: Dict[int, Optional[List[Waypoint]]] = dict()
 
-    def _shortest_path_for_agent(agent):
+    rail = distance_map.rail
+    # the distance map has been reset with a rail before it can be walked
+    assert rail is not None
+
+    def _shortest_path_for_agent(agent: EnvAgent):
+        position: IntVector2D
         if agent.status == RailAgentStatus.READY_TO_DEPART:
             position = agent.initial_position
         elif agent.status == RailAgentStatus.ACTIVE:
+            # ACTIVE means the agent is in the grid, hence it has a position
+            assert agent.position is not None
             position = agent.position
         elif agent.status == RailAgentStatus.DONE:
             position = agent.target
@@ -237,11 +246,11 @@ def get_shortest_paths(distance_map: DistanceMap, max_depth: Optional[int] = Non
             shortest_paths[agent.handle] = None
             return
         direction = agent.direction
-        shortest_paths[agent.handle] = []
+        shortest_path: List[Waypoint] = []
         distance = math.inf
         depth = 0
         while (position != agent.target and (max_depth is None or depth < max_depth)):
-            next_actions = get_valid_move_actions_(direction, position, distance_map.rail)
+            next_actions = get_valid_move_actions_(direction, position, rail)
             best_next_action = None
             for next_action in next_actions:
                 next_action_distance = distance_map.get()[
@@ -251,7 +260,7 @@ def get_shortest_paths(distance_map: DistanceMap, max_depth: Optional[int] = Non
                     best_next_action = next_action
                     distance = next_action_distance
 
-            shortest_paths[agent.handle].append(Waypoint(position, direction))
+            shortest_path.append(Waypoint(position, direction))
             depth += 1
 
             # if there is no way to continue, the rail must be disconnected!
@@ -263,7 +272,8 @@ def get_shortest_paths(distance_map: DistanceMap, max_depth: Optional[int] = Non
             position = best_next_action.next_position
             direction = best_next_action.next_direction
         if max_depth is None or depth < max_depth:
-            shortest_paths[agent.handle].append(Waypoint(position, direction))
+            shortest_path.append(Waypoint(position, direction))
+        shortest_paths[agent.handle] = shortest_path
 
     if agent_handle is not None:
         _shortest_path_for_agent(distance_map.agents[agent_handle])
@@ -275,10 +285,10 @@ def get_shortest_paths(distance_map: DistanceMap, max_depth: Optional[int] = Non
 
 
 def get_k_shortest_paths(env: RailEnv,
-                         source_position: Tuple[int, int],
+                         source_position: IntVector2D,
                          source_direction: int,
-                         target_position=Tuple[int, int],
-                         k: int = 1, debug=False) -> List[Tuple[Waypoint]]:
+                         target_position: IntVector2D,
+                         k: int = 1, debug: bool = False) -> List[Tuple[Waypoint, ...]]:
     """
     Computes the k shortest paths using modified Dijkstra
     following pseudo-code https://en.wikipedia.org/wiki/K_shortest_path_routing
@@ -302,17 +312,22 @@ def get_k_shortest_paths(env: RailEnv,
         We use a list of paths in order to keep the order of length.
     """
 
+    rail = env.rail
+    # the env has been reset before its k shortest paths can be computed
+    assert rail is not None
+
     # P: set of shortest paths from s to t
     # P =empty,
-    shortest_paths: List[Tuple[Waypoint]] = []
+    shortest_paths: List[Tuple[Waypoint, ...]] = []
 
     # countu: number of shortest paths found to node u
     # countu = 0, for all u in V
-    count = {(r, c, d): 0 for r in range(env.height) for c in range(env.width) for d in range(4)}
+    count: Dict[Tuple[int, int, int], int] = {(r, c, d): 0 for r in range(env.height) for c in range(env.width)
+                                              for d in range(4)}
 
     # B is a heap data structure containing paths
     # N.B. use OrderedSet to make result deterministic!
-    heap: OrderedSet[Tuple[Waypoint]] = OrderedSet()
+    heap: MutableSet[Tuple[Waypoint, ...]] = OrderedSet()
 
     # insert path Ps = {s} into B with cost 0
     heap.add((Waypoint(source_position, source_direction),))
@@ -322,12 +337,8 @@ def get_k_shortest_paths(env: RailEnv,
         if debug:
             print("iteration heap={}, shortest_paths={}".format(heap, shortest_paths))
         # – let Pu be the shortest cost path in B with cost C
-        cost = np.inf
-        pu = None
-        for path in heap:
-            if len(path) < cost:
-                pu = path
-                cost = len(path)
+        # N.B. min() keeps the first path of minimal length in insertion order, as OrderedSet is deterministic.
+        pu: Tuple[Waypoint, ...] = min(heap, key=len)
         u: Waypoint = pu[-1]
         if debug:
             print("  looking at pu={}".format(pu))
@@ -336,7 +347,10 @@ def get_k_shortest_paths(env: RailEnv,
         heap.remove(pu)
         #     – countu = countu + 1
 
-        urcd = (*u.position, u.direction)
+        # Every waypoint in the heap is built from a grid cell (see the Waypoint(...) calls
+        # below), so it always has a position; only action plans use position=None.
+        assert u.position is not None
+        urcd: Tuple[int, int, int] = (u.position[0], u.position[1], u.direction)
         count[urcd] += 1
 
         # – if u = t then P = P U {Pu}
@@ -348,7 +362,7 @@ def get_k_shortest_paths(env: RailEnv,
         # – if countu ≤ K then
         # CAVEAT: do not allow for loopy paths
         elif count[urcd] <= k:
-            possible_transitions = env.rail.get_transitions(*urcd)
+            possible_transitions = rail.get_transitions(*urcd)
             if debug:
                 print("  looking at neighbors of u={}, transitions are {}".format(u, possible_transitions))
             #     for each vertex v adjacent to u:

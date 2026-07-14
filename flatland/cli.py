@@ -3,10 +3,9 @@
 """Command line interface for flatland.
 
     flatland demo        run a quick simulation and watch it
-    flatland evaluate    run the grading service for challenge submissions
 
-Heavy imports (the env, the renderer, the evaluator) are done inside the
-commands rather than at module scope, so `flatland --help` stays instant.
+Heavy imports (the env, the renderer) are done inside the commands rather than
+at module scope, so `flatland --help` stays instant.
 """
 
 import time
@@ -20,7 +19,7 @@ from flatland.utils import console
 app = typer.Typer(
     no_args_is_help=True,
     add_completion=False,
-    help="Multi-agent reinforcement learning on trains.",
+    help="Multi-agent path finding on trains.",
 )
 
 
@@ -95,7 +94,7 @@ def demo(
     """Run a simulation with randomly-acting trains, and watch it."""
     import numpy as np
 
-    from flatland.envs.rail_env import RailEnv
+    from flatland.envs.rail_env import RailEnv, RailEnvActions
     from flatland.envs.rail_generators import complex_rail_generator
     from flatland.envs.schedule_generators import complex_schedule_generator
 
@@ -146,7 +145,7 @@ def demo(
         done = {"__all__": False}
         steps = 0
         while not done["__all__"]:
-            action = {i: int(rng.integers(0, 5)) for i, _ in enumerate(env.agents)}
+            action = {i: RailEnvActions(int(rng.integers(0, 5))) for i, _ in enumerate(env.agents)}
             _, _, done, _ = env.step(action)
             steps += 1
 
@@ -160,62 +159,6 @@ def demo(
 
     if renderer is not None:
         renderer.close_window()
-
-
-@app.command()
-def evaluate(
-    tests: Annotated[
-        str, typer.Option(exists=True, file_okay=False,
-                          help="Folder containing the Flatland test environments."),
-    ],
-    service_id: Annotated[
-        str, typer.Option(help="Must match the service id used by the client."),
-    ] = "FLATLAND_RL_SERVICE_ID",
-    shuffle: Annotated[
-        bool, typer.Option(help="Shuffle the environments before evaluating."),
-    ] = True,
-    disable_timeouts: Annotated[
-        bool, typer.Option(help="Turn off all evaluation timeouts."),
-    ] = False,
-    results_path: Annotated[
-        Optional[str], typer.Option(help="Where to write the results metadata."),
-    ] = None,
-):
-    """Run the grading service for challenge submissions."""
-    # Imported lazily: the evaluation service is only available with the "evaluator" extra,
-    # so that `flatland demo` and the env itself stay usable without it.
-    try:
-        import redis
-
-        from flatland.evaluators.service import FlatlandRemoteEvaluationService
-    except ImportError as e:
-        console.warn(
-            "The evaluator needs the optional 'evaluator' dependencies.\n"
-            "Install them with:  pip install 'flatland-rl[evaluator]'\n"
-            f"(missing: {e.name})",
-            title="MISSING DEPENDENCIES",
-        )
-        raise typer.Exit(code=1)
-
-    try:
-        redis.Redis().ping()
-    except redis.exceptions.ConnectionError:
-        console.warn(
-            "No Redis server is answering on localhost.\n"
-            "The evaluator needs one running. Start it and try again.",
-            title="REDIS NOT RUNNING",
-        )
-        raise typer.Exit(code=1)
-
-    FlatlandRemoteEvaluationService(
-        test_env_folder=tests,
-        flatland_rl_service_id=service_id,
-        visualize=False,
-        result_output_path=results_path,
-        verbose=False,
-        shuffle=shuffle,
-        disable_timeouts=disable_timeouts,
-    ).run()
 
 
 if __name__ == "__main__":

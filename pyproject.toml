@@ -1,21 +1,25 @@
 [project]
-name = "flatland-rl"
-description = "Multi Agent Reinforcement Learning on Trains"
+# "flatland" alone is taken on PyPI by an unrelated project, so the distribution is
+# named flatland-spl (ShortestPathLab). The import package is still `flatland`.
+name = "flatland-spl"
+description = "Multi-agent path finding on trains, in little (or ridiculously large) gridworlds"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.14"
 dynamic = ["version"]
-keywords = ["flatland"]
-authors = [{ name = "S.P. Mohanty", email = "mohanty@aicrowd.com" }]
+keywords = ["flatland", "multi-agent path finding", "mapf", "planning"]
+authors = [{ name = "ShortestPathLab" }]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
     "Natural Language :: English",
     "Programming Language :: Python :: 3.14",
 ]
 
-# The environment itself, plus rendering. Everything needed to build a RailEnv,
-# step it and render it. See the extras below for the evaluation service.
+# The environment itself, plus rendering: everything needed to build a RailEnv,
+# step it and render it. See the extras below.
 dependencies = [
     "attrs",
     "matplotlib",
@@ -29,18 +33,9 @@ dependencies = [
 
 [project.optional-dependencies]
 # Opens the renderer in a native desktop window instead of a browser tab.
-# Deliberately optional: a headless training box has no display to open it on,
-# and the renderer falls back to printing its URL there.
+# Deliberately optional: a headless box has no display to open it on, and the
+# renderer falls back to printing its URL there.
 native = ["pywebview"]
-# Needed only by flatland.evaluators (the AIcrowd challenge submission service)
-# and the `flatland-evaluator` console script.
-evaluator = [
-    "crowdai-api",
-    "msgpack-numpy",
-    "pandas",
-    "redis",
-    "timeout-decorator",
-]
 # Needed only by the in-notebook helpers: flatland.utils.jupyter_utils and
 # flatland.utils.editor. Not required to build, step or render an env.
 # graphviz is here, not in the core deps, because the only thing that ever drew a graph
@@ -52,20 +47,20 @@ notebooks = [
     "ipython",
     "ipywidgets",
 ]
-# Optional S3 upload support inside flatland.evaluators.aicrowd_helpers.
-aws = ["boto3"]
 
 [project.scripts]
 flatland = "flatland.cli:app"
 
 [project.urls]
-Homepage = "https://gitlab.aicrowd.com/flatland/flatland"
+Homepage = "https://github.com/ShortestPathLab/flatland"
+Repository = "https://github.com/ShortestPathLab/flatland"
+Issues = "https://github.com/ShortestPathLab/flatland/issues"
 
 [dependency-groups]
 dev = [
-    # tests and CI exercise flatland.evaluators and run the notebooks, so the dev env
-    # installs both extras too
-    "flatland-rl[evaluator,notebooks]",
+    # CI runs the notebooks, and `flatland demo` opens a native window by default,
+    # so the dev env installs both extras too
+    "flatland-spl[native,notebooks]",
     "benchmarker",
     "bumpversion",
     "coverage",
@@ -73,18 +68,10 @@ dev = [
     "jupyter",
     "notebook",
     "pydeps",
+    "pyright",
     "pytest",
     "pyvirtualdisplay",
     "ruff",
-    "twine",
-    "watchdog",
-    { include-group = "docs" },
-]
-docs = [
-    "docutils",
-    "numpydoc",
-    "sphinx",
-    "sphinx-rtd-theme",
 ]
 
 [build-system]
@@ -99,6 +86,19 @@ packages = ["flatland"]
 
 [tool.ruff]
 extend-exclude = ["docs", "notebooks"]
+
+[tool.pyright]
+include = ["flatland"]
+exclude = [
+    "**/__pycache__",
+    ".venv",
+    "build",
+    "dist",
+    "docs",
+    "notebooks",
+]
+pythonVersion = "3.14"
+typeCheckingMode = "standard"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

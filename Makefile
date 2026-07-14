@@ -1,4 +1,4 @@
-.PHONY: clean clean-test clean-pyc clean-build sync lint format test coverage docs servedocs benchmarks examples notebooks release dist install help
+.PHONY: clean clean-test clean-pyc clean-build sync lint typecheck format test coverage benchmarks examples notebooks dist install help
 .DEFAULT_GOAL := help
 
 define BROWSER_PYSCRIPT
@@ -56,6 +56,9 @@ sync: ## create/update the uv-managed virtualenv from uv.lock
 lint: ## check style with ruff
 	uv run ruff check flatland tests examples benchmarks
 
+typecheck: ## check types with pyright
+	uv run pyright
+
 format: ## auto-format and apply safe lint fixes with ruff
 	uv run ruff check --fix flatland tests examples benchmarks
 	uv run ruff format flatland tests examples benchmarks
@@ -67,12 +70,6 @@ test: ## run tests quickly with the default Python
 coverage: ## check code coverage quickly with the default Python
 	uv run python make_coverage.py
 
-docs: ## generate Sphinx HTML documentation, including API docs
-	uv run python make_docs.py
-
-servedocs: docs ## compile the docs watching for changes
-	uv run watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
-
 benchmarks: ## run all benchmarks
 	uv run python benchmarks/benchmark_all_examples.py
 
@@ -81,9 +78,6 @@ examples: ## run all examples
 
 notebooks: ## run all notebooks
 	uv run python notebooks/run_all_notebooks.py
-
-release: dist ## package and upload a release
-	uv publish
 
 dist: clean ## builds source and wheel package
 	uv build

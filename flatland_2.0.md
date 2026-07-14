@@ -13,13 +13,13 @@ Thus the following changes are coming in the next version to be closer to real r
 
 
 We explain these changes in more detail and how you can play with their parametrization in Tutorials 3--5:
-* [Tutorials](https://gitlab.aicrowd.com/flatland/flatland/tree/master/docs/tutorials)
+* [Tutorials](https://github.com/ShortestPathLab/flatland/tree/master/docs/tutorials)
 
 We appreciate *your feedback* on the performance and the difficulty on these levels to help us shape the best possible **Flat**land 2.0 environment.
 
 ## Example code
 
 To see all the changes in action you can just run the 
-* [examples/flatland_example_2_0.py](https://gitlab.aicrowd.com/flatland/flatland/blob/master/examples/flatland_2_0_example.py) 
+* [examples/flatland_example_2_0.py](https://github.com/ShortestPathLab/flatland/blob/master/examples/flatland_2_0_example.py) 
 
 example.

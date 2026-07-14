@@ -15,7 +15,7 @@ Types of Contributions
 Report Bugs
 ~~~~~~~~~~~
 
-Report bugs at https://gitlab.aicrowd.com/flatland/flatland/issues.
+Report bugs at https://github.com/ShortestPathLab/flatland/issues.
 
 If you are reporting a bug, please include:
 
@@ -45,7 +45,7 @@ articles, and such. A quick reference for writing good docstrings is available a
 Submit Feedback
 ~~~~~~~~~~~~~~~
 
-The best way to send feedback is to file an issue at https://gitlab.aicrowd.com/flatland/flatland/issues.
+The best way to send feedback is to file an issue at https://github.com/ShortestPathLab/flatland/issues.
 
 If you are proposing a feature:
 
@@ -59,10 +59,10 @@ Get Started!
 
 Ready to contribute? Here's how to set up `flatland` for local development.
 
-1. Fork the `flatland` repo on https://gitlab.aicrowd.com/flatland/flatland .
+1. Fork the `flatland` repo on https://github.com/ShortestPathLab/flatland .
 2. Clone your fork locally::
 
-    $ git clone git@gitlab.aicrowd.com:flatland/flatland.git
+    $ git clone git@github.com:ShortestPathLab/flatland.git
 
 3. Install the software dependencies with `uv <https://docs.astral.sh/uv/>`_. (This assumes you have uv installed by
    following the instructions `here <https://docs.astral.sh/uv/getting-started/installation/>`_. You do not need to
@@ -94,38 +94,28 @@ Ready to contribute? Here's how to set up `flatland` for local development.
    Prefixing a command with ``uv run`` runs it inside the project virtual env, re-syncing it first if the lockfile
    changed. Alternatively, activate ``.venv`` yourself and drop the prefix.
 
-6. Commit your changes and push your branch to Gitlab::
+6. Commit your changes and push your branch to GitHub::
 
     $ git add .
     $ git commit -m "Addresses #<issue-number> Your detailed description of your changes."
     $ git push origin name-of-your-bugfix-or-feature
 
-7. Submit a merge request through the Gitlab repository website.
+7. Submit a pull request through the GitHub repository website.
 
-Merge Request Guidelines
+Pull Request Guidelines
 -------------------------
 
-Before you submit a merge request, check that it meets these guidelines:
+Before you submit a pull request, check that it meets these guidelines:
 
-1. The merge request should include tests.
-2. The code must be formatted (PyCharm)
-3. If the merge request adds functionality, the docs should be updated. Put
+1. The pull request should include tests.
+2. If the pull request adds functionality, the docs should be updated. Put
    your new functionality into a function with a docstring, and add the
-   feature to the list in README.rst.
-4. The merge request should work for Python 3.14. Check
-   https://gitlab.aicrowd.com/flatland/flatland/pipelines
-   and make sure that the tests pass.
-   We force pipelines to be run successfully for merge requests to be merged.
-5. Although we cannot enforce it technically, we ask for merge requests to be reviewed by at least one core member
-   in order to ensure that the Technical Guidelines below are respected and that the code is well tested:
-
-5.1.  The remarks from the review should be resolved/implemented and communicated using the 'discussions resolved':
-
-.. image:: images/DiscussionsResolved.png
-
-5.2.  When a merge request is merged, source branches should be deleted and commits squashed:
-
-.. image:: images/SourceBranchSquash.png
+   feature to the list in README.md.
+3. The pull request should work for Python 3.14. Make sure that the tests pass
+   before asking for a review.
+4. Although we cannot enforce it technically, we ask for pull requests to be reviewed by at least one core member
+   in order to ensure that the Technical Guidelines below are respected and that the code is well tested.
+5. When a pull request is merged, source branches should be deleted and commits squashed.
 
 Tips
 ----
@@ -135,83 +125,17 @@ To run a subset of tests::
 $ py.test tests.test_flatland
 
 
-Deploying
+Releasing
 ---------
 
-A reminder for the maintainers on how to deploy.
-Make sure all your changes are committed .
-Then run::
+A reminder for the maintainers on how to cut a release. Flatland is not published to a package index; a release is
+simply a tagged commit that users install from GitHub.
+Make sure all your changes are committed, then run::
 
 $ bumpversion patch # possible: major / minor / patch
 $ git push
 $ git push --tags
 
-TODO: Travis will then deploy to PyPI if tests pass. (To be configured properly by Mohanty)
-
-
-Local Evaluation
-----------------
-
-This document explains you how to locally evaluate your submissions before making
-an official submission to the competition.
-
-Requirements
-~~~~~~~~~~~~
-
-* **flatland-rl** : We expect that you have `flatland-rl` installed by following the instructions in  [README.md](README.md).
-
-* **redis** : Additionally you will also need to have  `redis installed <https://redis.io/topics/quickstart>`_ and **should have it running in the background.**
-
-Test Data
-~~~~~~~~~
-
-* **test env data** : You can `download and untar the test-env-data <https://www.aicrowd.com/challenges/flatland-challenge/dataset_files>`, at a location of your choice, lets say `/path/to/test-env-data/`. After untarring the folder, the folder structure should look something like:
-
-
-.. code-block:: console
-
-    .
-    └── test-env-data
-        ├── Test_0
-        │   ├── Level_0.pkl
-        │   └── Level_1.pkl
-        ├── Test_1
-        │   ├── Level_0.pkl
-        │   └── Level_1.pkl
-        ├..................
-        ├..................
-        ├── Test_8
-        │   ├── Level_0.pkl
-        │   └── Level_1.pkl
-        └── Test_9
-            ├── Level_0.pkl
-            └── Level_1.pkl
-
-Evaluation Service
-~~~~~~~~~~~~~~~~~~
-
-* **start evaluation service** : Then you can start the evaluator by running :
-
-.. code-block:: console
-
-    flatland evaluate --tests /path/to/test-env-data/
-
-RemoteClient
-~~~~~~~~~~~~
-
-* **run client** : Some `sample submission code can be found in the starter-kit <https://github.com/AIcrowd/flatland-challenge-starter-kit/>`_, but before you can run your code locally using `FlatlandRemoteClient`, you will have to set the `AICROWD_TESTS_FOLDER` environment variable to the location where you previous untarred the folder with `the test-env-data`:
-
-
-.. code-block:: console
-
-    export AICROWD_TESTS_FOLDER="/path/to/test-env-data/"
-
-    # or on Windows :
-    #
-    # set AICROWD_TESTS_FOLDER "\path\to\test-env-data\"
-
-    # and then finally run your code
-    python run.py
 
 
 Technical Guidelines
@@ -294,7 +218,7 @@ We use Type Hints (`PEP 484 <https://www.python.org/dev/peps/pep-0484/>`_) for b
 
 Have a look at the `Type Hints Cheat Sheet <https://mypy.readthedocs.io/en/latest/cheat_sheet_py3.html>`_ to get started with Type Hints.
 
-Caveat: We discourage the usage of Type Aliases for structured data since its members remain unnamed (see `Issue #284 <https://gitlab.aicrowd.com/flatland/flatland/issues/284/>`_).
+Caveat: We discourage the usage of Type Aliases for structured data since its members remain unnamed.
 
     .. code-block:: python
         # Discouraged: Type Alias with unnamed members
@@ -406,7 +330,7 @@ Currying
 We discourage currying to encapsulate state since we often want the stateful object to have multiple methods
 (but the curried function has only its signature and abusing params to switch behaviour is not very readable).
 
-Thus, we should refactor our generators and use classes instead (see `Issue #283 <https://gitlab.aicrowd.com/flatland/flatland/issues/283>`_).
+Thus, we should refactor our generators and use classes instead.
 
     .. code-block:: python
         # Type Alias

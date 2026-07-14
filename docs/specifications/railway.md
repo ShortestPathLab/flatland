@@ -2,7 +2,7 @@
 
 ### Overview
 
-Flatland is usually a two-dimensional environment intended for multi-agent problems, in particular it should serve as a benchmark for many multi-agent reinforcement learning approaches.
+Flatland is usually a two-dimensional environment intended for multi-agent problems, in particular it should serve as a benchmark for many multi-agent path finding and planning approaches.
 
 The environment can host a broad array of diverse problems reaching from disease spreading to train traffic management.
 
@@ -94,7 +94,7 @@ Furthermore, each cell is exclusive and can only be occupied by one agent at any
 
 ### Observations
 
-In this early stage of the project it is very difficult to come up with the necessary observation space in order to solve all train related problems. Given our early experiments we therefore propose different observation methods and hope to investigate further options with the crowdsourcing challenge. Below we compare global observation with local observations and discuss the differences in performance and flexibility.
+It is very difficult to come up with a single observation space that suits all train related problems. We therefore provide different observation methods, and expect further options to be explored. Below we compare global observation with local observations and discuss the differences in performance and flexibility.
 
 
 #### Global Observation
@@ -103,7 +103,7 @@ Global observations, specifically on a grid like environment, benefit from the v
 
 It is reasonable to assume that an observation of the full environment is beneficiary for good global solutions. Early experiments also showed promising result on small toy examples.
 
-However, we run into problems when scalability and flexibility become an important factor. Already on small toy examples we could show that flexibility quickly becomes an issue when the problem instances differ too much. When scaling the problem instances the decision performance of the algorithm diminishes and re-training becomes necessary.
+However, we run into problems when scalability and flexibility become an important factor. Already on small toy examples we could show that flexibility quickly becomes an issue when the problem instances differ too much. When scaling the problem instances the decision performance of the algorithm diminishes.
 
 Given the complexity of real-world railway networks (especially in Switzerland), we do not believe that a global observation is suited for this problem.
 
@@ -145,7 +145,7 @@ A tree search on a grid of course will be computationally very expensive compare
 ![local_tree](https://drive.google.com/uc?export=view&id=1biob77VFskCsa3HwNsDH-gks9k965JEb)
 _Figure 3: A local tree search moves along the allowed transitions, originating from the agents position. This observation contains much more relevant information but has a higher computational cost. This figure illustrates an agent that can move east from its current position. The thick lines indicate the allowed transitions to a depth of eight._
 
-We have gained some insights into using and aggregating the information along the tree search. This should be part of the early investigation while implementing Flatland. One possibility would also be to leave this up to the participants of the Flatland challenge.
+We have gained some insights into using and aggregating the information along the tree search. How best to do so is left open, and is a natural thing for users of Flatland to experiment with.
 
 
 #### Communication
@@ -251,7 +251,7 @@ An additional refinement proven meaningful for situations where not target time 
 
 ### Initialization
 
-Given that we want a generalizable agent to solve the problem, training must be performed on a diverse training set. We therefore need a level generator which can create novel tasks for to be solved in a reliable and fast fashion.
+Given that we want a planner that generalizes, it must be tested on a diverse set of problems. We therefore need a level generator which can create novel tasks to be solved in a reliable and fast fashion.
 
 
 #### Level Generator
@@ -281,12 +281,12 @@ The output of the level generator should be:
 
 ### Railway Use Cases
 
-In this section we define a few simple tasks related to railway traffic that we believe would be well suited for a crowdsourcing challenge. The tasks are ordered according to their complexity. The Flatland repo must at least support all these types of use cases.
+In this section we define a few simple tasks related to railway traffic. The tasks are ordered according to their complexity. The Flatland repo must at least support all these types of use cases.
 
 
 #### Simple Navigation
 
-In order to onboard the broad reinforcement learning community this task is intended as an introduction to the Railway@Flatland environment.
+This task is intended as an introduction to the Railway@Flatland environment.
 
 
 ##### Task
@@ -337,7 +337,7 @@ The agents must see each other in their tree searches.
 
 ##### Previous learnings
 
-Training an agent by himself first to understand the main task turned out to be beneficial.
+Solving the single-agent task first, before moving to the multi-agent one, turned out to be beneficial.
 
 It might be necessary to add the "intended" paths of each agent to the observation in order to get intelligent multi agent behavior.
 
@@ -355,7 +355,7 @@ Using a grid world with 8 transition possibilities to the neighboring cells cons
 
 Considering the recent advancements in machine learning, this approach also allows to make use of convolutions in order to process observation states of agents. For the specific case of railway simulation the grid world unfortunately also brings a few drawbacks.
 
-Most notably the railway network only offers action possibilities at elements where there are more than two transition probabilities. Thus, if using a less dense graph than a grid, the railway network could be represented in a simpler graph. However, we believe that moving from grid-like example where many transitions are allowed towards the railway network with fewer transitions would be the simplest approach for the broad reinforcement learning community.
+Most notably the railway network only offers action possibilities at elements where there are more than two transition probabilities. Thus, if using a less dense graph than a grid, the railway network could be represented in a simpler graph. However, we believe that moving from a grid-like example where many transitions are allowed towards the railway network with fewer transitions is the most approachable way in.
 
 
 
@@ -365,7 +365,7 @@ The separation between rail generator and schedule generator reflects the organi
 - Infrastructure Manager (IM): is responsible for the layout and maintenance of tracks
 - Railway Undertaking (RU): operates trains on the infrastructure
 Usually, there is a third organisation, which ensures discrimination-free access to the infrastructure for concurrent requests for the infrastructure in a **schedule planning phase**.
-However, in the **Flat**land challenge, we focus on the re-scheduling problem during live operations.
+However, in **Flat**land we focus on the re-scheduling problem during live operations.
 
 Technically,
 ```python
@@ -466,7 +466,7 @@ The chosen action is then executed when a step to the next cell is valid. For ex
 
 - Agent enters switch and choses to deviate left. Agent fractional speed is 1/4 and thus the agent will take 4 time steps to complete its journey through the cell. On the 4th time step the agent will leave the cell deviating left as chosen at the entry of the cell.
     - All actions chosen by the agent during its travels within a cell are ignored
-    - Agents can make observations at any time step. Make sure to discard observations without any information. See this [example](https://gitlab.aicrowd.com/flatland/baselines/blob/master/torch_training/training_navigation.py) for a simple implementation.
+    - Agents can make observations at any time step. Make sure to discard observations without any information.
 - The environment checks if agent is allowed to move to next cell only at the time of the switch to the next cell
 
 In your controller, you can check whether an agent requires an action by checking `info`:

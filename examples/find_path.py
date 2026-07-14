@@ -34,7 +34,7 @@ def get_path(agents, rail, max_ep_steps):
 try:
     from flatland.utils.controller import evaluator
 except Exception as e:
-    print("Cannot load flatland modules! Make sure your flatland-rl is properly installed.")
+    print("Cannot load flatland modules! Make sure flatland is properly installed.")
     print(e)
     exit(1)
 

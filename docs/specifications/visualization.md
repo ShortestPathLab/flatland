@@ -36,17 +36,17 @@ Shows this software component in relation to some of the other components.  We n
 2. Output visualisation into movie / image files for use in later animation
 3. Should not impose control-flow constraints on Environment
     6. Should not force env to respond to events
-    7. Should not drive the "main loop" of Inference or training 
+    7. Should not drive the "main loop" of the solver 
 
 
 #### Secondary / Optional Requirements 
 
 
 
-1. During training (possibly across multiple processes or machines / OS instances), display a single training environment,
-    1. without holding up the other environments in the training.
-    2. Some training environments may be remote to the display machine (eg using GCP / AWS)
-    3. Attach to / detach from running environment / training cluster without restarting training.
+1. During a run (possibly across multiple processes or machines / OS instances), display a single environment,
+    1. without holding up the other environments in the run.
+    2. Some environments may be remote to the display machine (eg using GCP / AWS)
+    3. Attach to / detach from a running environment / cluster without restarting the run.
 2. Provide a switch to make use of graphics / artwork provided by graphic artist
     4. Fast / compact mode for general use
     5. Beauty mode for publicity / demonstrations

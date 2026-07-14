@@ -13,7 +13,7 @@ from flatland.utils.rendertools import RenderTool, AgentRenderVariant
 np.random.seed(1)
 
 # Use the new sparse_rail_generator to generate feasible network configurations with corresponding tasks
-# Training on simple small tasks is the best way to get familiar with the environment
+# Starting on simple small tasks is the best way to get familiar with the environment
 
 # Use a the malfunction generator to break agents from time to time
 stochastic_data = MalfunctionParameters(malfunction_rate=30,  # Rate of malfunction occurence
@@ -56,7 +56,7 @@ env_renderer = RenderTool(env, gl="PILSVG",
                           screen_width=1000)
 
 
-# Import your own Agent or use RLlib to train agents on Flatland
+# Plug in your own planner here
 # As an example we use a random agent instead
 class RandomAgent:
 
@@ -107,7 +107,6 @@ print(env.get_num_agents(), )
 env_renderer.reset()
 
 # Here you can also further enhance the provided observation by means of normalization
-# See training navigation example in the baseline repository
 
 score = 0
 # Run episode

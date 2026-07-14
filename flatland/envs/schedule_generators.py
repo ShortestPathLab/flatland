@@ -3,19 +3,21 @@ import warnings
 from typing import Tuple, List, Callable, Mapping, Optional, Any
 
 import numpy as np
-from numpy.random.mtrand import RandomState
+from numpy.random import Generator
 
 from flatland.core.grid.grid4_utils import get_new_position
+from flatland.core.grid.grid_utils import IntVector2D, IntVector2DArray
 from flatland.core.transition_map import GridTransitionMap
 from flatland.envs.schedule_utils import Schedule
 from flatland.envs import persistence
 
 AgentPosition = Tuple[int, int]
-ScheduleGenerator = Callable[[GridTransitionMap, int, Optional[Any], Optional[int]], Schedule]
+ScheduleGenerator = Callable[[GridTransitionMap, int, Optional[Any], int, Generator], Schedule]
 
 
-def speed_initialization_helper(nb_agents: int, speed_ratio_map: Mapping[float, float] = None,
-                                seed: int = None, np_random: RandomState = None) -> List[float]:
+def speed_initialization_helper(nb_agents: int, speed_ratio_map: Optional[Mapping[float, float]] = None,
+                                seed: Optional[int] = None,
+                                np_random: Optional[Generator] = None) -> List[float]:
     """
     Parameters
     ----------
@@ -32,6 +34,9 @@ def speed_initialization_helper(nb_agents: int, speed_ratio_map: Mapping[float, 
     if speed_ratio_map is None:
         return [1.0] * nb_agents
 
+    # np_random is only optional if no speeds have to be drawn.
+    assert np_random is not None
+
     nb_classes = len(speed_ratio_map.keys())
     speed_ratio_map_as_list: List[Tuple[float, float]] = list(speed_ratio_map.items())
     speed_ratios = list(map(lambda t: t[1], speed_ratio_map_as_list))
@@ -40,20 +45,21 @@ def speed_initialization_helper(nb_agents: int, speed_ratio_map: Mapping[float, 
 
 
 class BaseSchedGen(object):
-    def __init__(self, speed_ratio_map: Mapping[float, float] = None, seed: int = 1):
+    def __init__(self, speed_ratio_map: Optional[Mapping[float, float]] = None, seed: int = 1):
         self.speed_ratio_map = speed_ratio_map
         self.seed = seed
 
     def generate(self, rail: GridTransitionMap, num_agents: int, hints: Any=None, num_resets: int = 0,
-        np_random: RandomState = None) -> Schedule:
-        pass
+        np_random: Optional[Generator] = None) -> Schedule:
+        raise NotImplementedError()
 
     def __call__(self, *args, **kwargs):
         return self.generate(*args, **kwargs)
 
 
 
-def complex_schedule_generator(speed_ratio_map: Mapping[float, float] = None, seed: int = 1) -> ScheduleGenerator:
+def complex_schedule_generator(speed_ratio_map: Optional[Mapping[float, float]] = None,
+                               seed: int = 1) -> ScheduleGenerator:
     """
 
     Generator used to generate the levels of Round 1 in the Flatland Challenge. It can only be used together
@@ -66,7 +72,7 @@ def complex_schedule_generator(speed_ratio_map: Mapping[float, float] = None, se
     """
 
     def generator(rail: GridTransitionMap, num_agents: int, hints: Any = None, num_resets: int = 0,
-                  np_random: RandomState = None) -> Schedule:
+                  np_random: Optional[Generator] = None) -> Schedule:
         """
 
         The generator that assigns tasks to all the agents
@@ -76,7 +82,7 @@ def complex_schedule_generator(speed_ratio_map: Mapping[float, float] = None, se
         :param num_resets: How often the generator has been reset.
         :return: Returns the generator to the rail constructor
         """
-        # Todo: Remove parameters and variables not used for next version, Issue: <https://gitlab.aicrowd.com/flatland/flatland/issues/305>
+        # Todo: Remove parameters and variables not used for next version
         _runtime_seed = seed + num_resets
 
         start_goal = hints['start_goal']
@@ -100,7 +106,8 @@ def complex_schedule_generator(speed_ratio_map: Mapping[float, float] = None, se
     return generator
 
 
-def sparse_schedule_generator(speed_ratio_map: Mapping[float, float] = None, seed: int = 1) -> ScheduleGenerator:
+def sparse_schedule_generator(speed_ratio_map: Optional[Mapping[float, float]] = None,
+                              seed: int = 1) -> ScheduleGenerator:
     return SparseSchedGen(speed_ratio_map, seed)
 
 
@@ -115,7 +122,7 @@ class SparseSchedGen(BaseSchedGen):
     """
 
     def generate(self, rail: GridTransitionMap, num_agents: int, hints: Any = None, num_resets: int = 0,
-                  np_random: RandomState = None) -> Schedule:
+                  np_random: Optional[Generator] = None) -> Schedule:
         """
 
         The generator that assigns tasks to all the agents
@@ -125,6 +132,7 @@ class SparseSchedGen(BaseSchedGen):
         :param num_resets: How often the generator has been reset.
         :return: Returns the generator to the rail constructor
         """
+        assert np_random is not None
 
         _runtime_seed = self.seed + num_resets
 
@@ -136,14 +144,13 @@ class SparseSchedGen(BaseSchedGen):
             num_agents = max_num_agents
             warnings.warn("Too many agents! Changes number of agents.")
         # Place agents and targets within available train stations
-        agents_position = []
-        agents_target = []
-        agents_direction = []
+        agents_position: IntVector2DArray = []
+        agents_target: IntVector2DArray = []
+        agents_direction: List[int] = []
 
         for agent_idx in range(num_agents):
-            infeasible_agent = True
             tries = 0
-            while infeasible_agent:
+            while True:
                 tries += 1
                 infeasible_agent = False
                 # Set target for agent
@@ -172,6 +179,8 @@ class SparseSchedGen(BaseSchedGen):
                 if tries >= 100:
                     warnings.warn("Did not find any possible path, check your parameters!!!")
                     break
+                if not infeasible_agent:
+                    break
             agents_position.append((start[0][0], start[0][1]))
             agents_target.append((target[0][0], target[0][1]))
 
@@ -195,7 +204,8 @@ class SparseSchedGen(BaseSchedGen):
                         max_episode_steps=max_episode_steps)
 
 
-def random_schedule_generator(speed_ratio_map: Mapping[float, float] = None, seed: int = 1) -> ScheduleGenerator:
+def random_schedule_generator(speed_ratio_map: Optional[Mapping[float, float]] = None,
+                              seed: int = 1) -> ScheduleGenerator:
     return RandomSchedGen(speed_ratio_map, seed)
 
 
@@ -216,10 +226,12 @@ class RandomSchedGen(BaseSchedGen):
     """
 
     def generate(self, rail: GridTransitionMap, num_agents: int, hints: Any = None, num_resets: int = 0,
-                  np_random: RandomState = None) -> Schedule:
+                  np_random: Optional[Generator] = None) -> Schedule:
+        assert np_random is not None
+
         _runtime_seed = self.seed + num_resets
 
-        valid_positions = []
+        valid_positions: IntVector2DArray = []
         for r in range(rail.height):
             for c in range(rail.width):
                 if rail.get_full_transitions(r, c) > 0:
@@ -233,12 +245,13 @@ class RandomSchedGen(BaseSchedGen):
             return Schedule(agent_positions=[], agent_directions=[],
                             agent_targets=[], agent_speeds=[], agent_malfunction_rates=None, max_episode_steps=0)
 
-        agents_position_idx = [i for i in np_random.choice(len(valid_positions), num_agents, replace=False)]
+        agents_position_idx = [int(i) for i in np_random.choice(len(valid_positions), num_agents, replace=False)]
         agents_position = [valid_positions[agents_position_idx[i]] for i in range(num_agents)]
-        agents_target_idx = [i for i in np_random.choice(len(valid_positions), num_agents, replace=False)]
+        agents_target_idx = [int(i) for i in np_random.choice(len(valid_positions), num_agents, replace=False)]
         agents_target = [valid_positions[agents_target_idx[i]] for i in range(num_agents)]
         update_agents = np.zeros(num_agents)
 
+        agents_direction: List[int] = []
         re_generate = True
         cnt = 0
         while re_generate:
@@ -251,10 +264,10 @@ class RandomSchedGen(BaseSchedGen):
             for i in range(num_agents):
                 if update_agents[i] == 1:
                     x = np.setdiff1d(np.arange(len(valid_positions)), agents_position_idx)
-                    agents_position_idx[i] = np_random.choice(x)
+                    agents_position_idx[i] = int(np_random.choice(x))
                     agents_position[i] = valid_positions[agents_position_idx[i]]
                     x = np.setdiff1d(np.arange(len(valid_positions)), agents_target_idx)
-                    agents_target_idx[i] = np_random.choice(x)
+                    agents_target_idx[i] = int(np_random.choice(x))
                     agents_target[i] = valid_positions[agents_target_idx[i]]
             update_agents = np.zeros(num_agents)
 
@@ -316,7 +329,7 @@ def schedule_from_file(filename, load_from_package=None) -> ScheduleGenerator:
     """
 
     def generator(rail: GridTransitionMap, num_agents: int, hints: Any = None, num_resets: int = 0,
-                  np_random: RandomState = None) -> Schedule:
+                  np_random: Optional[Generator] = None) -> Schedule:
 
         env_dict = persistence.RailEnvPersister.load_env_dict(filename, load_from_package=load_from_package)
 

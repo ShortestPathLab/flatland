@@ -38,7 +38,6 @@ def test_get_shortest_paths_unreachable():
 
 
 # todo file test_002.pkl has to be generated automatically
-# see https://gitlab.aicrowd.com/flatland/flatland/issues/279
 def test_get_shortest_paths():
     #env = load_flatland_environment_from_file('test_002.mpk', 'env_data.tests')
     env, env_dict = RailEnvPersister.load_new("test_002.mpk", "env_data.tests")
@@ -119,7 +118,6 @@ def test_get_shortest_paths():
 
 
 # todo file test_002.pkl has to be generated automatically
-# see https://gitlab.aicrowd.com/flatland/flatland/issues/279
 def test_get_shortest_paths_max_depth():
     #env = load_flatland_environment_from_file('test_002.pkl', 'env_data.tests')
     env, _ = RailEnvPersister.load_new("test_002.mpk", "env_data.tests")
@@ -146,7 +144,6 @@ def test_get_shortest_paths_max_depth():
 
 
 # todo file Level_distance_map_shortest_path.pkl has to be generated automatically
-# see https://gitlab.aicrowd.com/flatland/flatland/issues/279
 def test_get_shortest_paths_agent_handle():
     #env = load_flatland_environment_from_file('Level_distance_map_shortest_path.pkl', 'env_data.tests')
     env, _ = RailEnvPersister.load_new("Level_distance_map_shortest_path.mpk", "env_data.tests")

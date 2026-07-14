@@ -123,3 +123,5 @@ test_save.dat
 dump.rdb
 .gitignore
 examples/test_0.ddl
+
+/tmp

@@ -564,6 +564,29 @@ class RenderLocal(RenderBase):
                                 rotation, dead_end=is_dead_end, curves=curves and not is_dead_end, spacing=spacing,
                                 color=rail_color)
 
+    def _env_stats(self, episode=None, step=None):
+        """What the viewer should be told about the run, this frame.
+
+        The caller may pass an explicit `step`/`episode`; otherwise we read the
+        env's own counters, so the numbers are right without anyone opting in.
+        """
+        env = self.env
+        agents = env.agents or []
+        done = sum(
+            1 for a in agents
+            if a.status in (RailAgentStatus.DONE, RailAgentStatus.DONE_REMOVED)
+        )
+        active = sum(1 for a in agents if a.status == RailAgentStatus.ACTIVE)
+
+        return {
+            "episode": episode,
+            "step": getattr(env, "_elapsed_steps", None) if step is None else step,
+            "max_steps": getattr(env, "_max_episode_steps", None),
+            "agents": len(agents),
+            "active": active,
+            "done": done,
+        }
+
     def render_env(self,
                    show=False,  # whether to call matplotlib show() or equivalent after completion
                    show_agents=True,  # whether to include agents
@@ -579,6 +602,11 @@ class RenderLocal(RenderBase):
         """ Draw the environment using the GraphicsLayer this RenderTool was created with.
             (Use show=False from a Jupyter notebook with %matplotlib inline)
         """
+        # RenderLocal is the only thing here that holds the env, so it is the only
+        # thing that can say what step we are on. Layers that display nothing
+        # (PIL, PILSVG) have no use for it.
+        if hasattr(self.gl, "set_stats"):
+            self.gl.set_stats(self._env_stats(episode, step))
 
         # Both sprite-based layers (WEBGL subclasses PILSVG); "PIL" is the
         # older primitive renderer and takes the other path.

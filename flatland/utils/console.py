@@ -94,11 +94,15 @@ class RenderStatus:
     """
 
     _DOT = _glyph("●", "*")
+    _PLAY = _glyph("▶", ">")
+    _PAUSE = _glyph("⏸", "||")
 
-    def __init__(self, url, port, get_viewers, native=False, reason=None, remote=False):
+    def __init__(self, url, port, get_viewers, get_stats=None, native=False,
+                 reason=None, remote=False):
         self.url = url
         self.port = port
         self.get_viewers = get_viewers
+        self.get_stats = get_stats
         self.native = native
         self.reason = reason
         self.remote = remote
@@ -127,6 +131,41 @@ class RenderStatus:
         if self.native:
             return "yellow", "Opening the window ..."
         return "yellow", "Waiting for you to open the link ..."
+
+    def _append_progress(self, body):
+        """Second line: is it moving, and how far has it got?
+
+        Separate from the connection dot above, which answers a different
+        question - one is about *your* link, this is about *the run*.
+        """
+        if self.get_stats is None:
+            return
+        try:
+            stats = self.get_stats() or {}
+        except Exception:  # noqa: BLE001 - a status line must never break the sim
+            return
+        if not stats:
+            return
+
+        playing = stats.get("playing")
+        glyph, label, style = (
+            (self._PLAY, "Playing", "green") if playing else (self._PAUSE, "Paused", "yellow")
+        )
+
+        body.append("\n")
+        body.append(f"{glyph} ", style=f"bold {style}")
+        body.append(f"{label:<7}", style=style)
+
+        parts = []
+        step, max_steps = stats.get("step"), stats.get("max_steps")
+        if step is not None:
+            parts.append(f"step {step}" + (f"/{max_steps}" if max_steps else ""))
+        if stats.get("agents"):
+            parts.append(f"{stats.get('done', 0)}/{stats['agents']} arrived")
+        if playing and stats.get("fps"):
+            parts.append(f"{stats['fps']:.0f} fps")
+        if parts:
+            body.append("  " + "   ".join(parts), style="dim")
 
     def _render(self):
         color, message = self._status()
@@ -157,6 +196,8 @@ class RenderStatus:
         body.append("\n")
         body.append(f"{self._DOT} ", style=f"bold {color}")
         body.append(message, style=color)
+
+        self._append_progress(body)
 
         if self.native:
             title = _glyph("\U0001f682 ", "") + "FLATLAND"

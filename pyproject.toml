@@ -19,7 +19,7 @@ dependencies = [
     "click",
     "crowdai-api",
     "graphviz",
-    "gym",
+    "gymnasium",
     "importlib-resources",
     "ipycanvas",
     "ipywidgets",

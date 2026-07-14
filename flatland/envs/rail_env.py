@@ -27,7 +27,7 @@ from flatland.envs import persistence
 from flatland.envs import agent_chains as ac
 
 from flatland.envs.observations import GlobalObsForRailEnv
-from gym.utils import seeding
+from gymnasium.utils import seeding
 
 # Direct import of objects / classes does not work with circular imports.
 # from flatland.envs.malfunction_generators import no_malfunction_generator, Malfunction, MalfunctionProcessData

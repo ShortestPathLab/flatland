@@ -542,9 +542,6 @@ dependencies = [
     { name = "attrs" },
     { name = "click" },
     { name = "graphviz" },
-    { name = "ipycanvas" },
-    { name = "ipython" },
-    { name = "ipywidgets" },
     { name = "matplotlib" },
     { name = "msgpack" },
     { name = "networkx" },
@@ -565,6 +562,12 @@ evaluator = [
     { name = "redis" },
     { name = "timeout-decorator" },
 ]
+notebooks = [
+    { name = "ipycanvas" },
+    { name = "ipyevents" },
+    { name = "ipython" },
+    { name = "ipywidgets" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -572,7 +575,7 @@ dev = [
     { name = "bumpversion" },
     { name = "coverage" },
     { name = "docutils" },
-    { name = "flatland-rl", extra = ["evaluator"] },
+    { name = "flatland-rl", extra = ["evaluator", "notebooks"] },
     { name = "imageio" },
     { name = "jupyter" },
     { name = "notebook" },
@@ -600,9 +603,10 @@ requires-dist = [
     { name = "click" },
     { name = "crowdai-api", marker = "extra == 'evaluator'" },
     { name = "graphviz" },
-    { name = "ipycanvas" },
-    { name = "ipython" },
-    { name = "ipywidgets" },
+    { name = "ipycanvas", marker = "extra == 'notebooks'" },
+    { name = "ipyevents", marker = "extra == 'notebooks'" },
+    { name = "ipython", marker = "extra == 'notebooks'" },
+    { name = "ipywidgets", marker = "extra == 'notebooks'" },
     { name = "matplotlib" },
     { name = "msgpack" },
     { name = "msgpack-numpy", marker = "extra == 'evaluator'" },
@@ -615,7 +619,7 @@ requires-dist = [
     { name = "redis", marker = "extra == 'evaluator'" },
     { name = "timeout-decorator", marker = "extra == 'evaluator'" },
 ]
-provides-extras = ["aws", "evaluator"]
+provides-extras = ["aws", "evaluator", "notebooks"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -623,7 +627,7 @@ dev = [
     { name = "bumpversion" },
     { name = "coverage" },
     { name = "docutils" },
-    { name = "flatland-rl", extras = ["evaluator"] },
+    { name = "flatland-rl", extras = ["evaluator", "notebooks"] },
     { name = "imageio" },
     { name = "jupyter" },
     { name = "notebook" },
@@ -788,6 +792,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/50/56/484c8979bbcaa3e3f2da4eac6a1eb41e998e353e4c6ef89e9612889813c8/ipycanvas-0.14.3.tar.gz", hash = "sha256:c6a53a22eebf4d611b168b8f4434145883f27a7575509bd99a4bfc48c5385a39", size = 4150499, upload-time = "2025-12-11T09:12:59.916Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/11/37/c6880bd16093793dcb4c005011cf968f45fd815b7b5094fa8374524add26/ipycanvas-0.14.3-py2.py3-none-any.whl", hash = "sha256:8a2f48e1e079355d3e7d5683e5c6e7684a87c15c3750c8d8cd2289c95383ee3e", size = 142962, upload-time = "2025-12-11T09:12:50.5Z" },
+]
+
+[[package]]
+name = "ipyevents"
+version = "2.0.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "ipywidgets" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/82/e5/ac7e199dd22ce3f7e0d43c6433fef5450197fa81994393e3381893b12d61/ipyevents-2.0.4.tar.gz", hash = "sha256:bd8c66a9ff26f481494cda1ec1d979722ca9eba19f8ef52538c7cc2db2a1a139", size = 210601, upload-time = "2025-09-15T14:02:34.29Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ca/d3/642a6dc3db8ea558a9b5fbc83815b197861868dc98f98a789b85c7660670/ipyevents-2.0.4-py3-none-any.whl", hash = "sha256:e532e05b037f70373850723f483d2830cb8a633e5aa19637ee9e7adaf41421f1", size = 102433, upload-time = "2025-09-15T14:02:33.255Z" },
 ]
 
 [[package]]

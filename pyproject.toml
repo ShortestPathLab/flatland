@@ -20,9 +20,6 @@ dependencies = [
     "attrs",
     "click",
     "graphviz",
-    "ipycanvas",
-    "ipython",
-    "ipywidgets",
     "matplotlib",
     "msgpack",
     "networkx",
@@ -42,6 +39,14 @@ evaluator = [
     "redis",
     "timeout-decorator",
 ]
+# Needed only by the in-notebook helpers: flatland.utils.jupyter_utils and
+# flatland.utils.editor. Not required to build, step or render an env.
+notebooks = [
+    "ipycanvas",
+    "ipyevents",
+    "ipython",
+    "ipywidgets",
+]
 # Optional S3 upload support inside flatland.evaluators.aicrowd_helpers.
 aws = ["boto3"]
 
@@ -54,8 +59,9 @@ Homepage = "https://gitlab.aicrowd.com/flatland/flatland"
 
 [dependency-groups]
 dev = [
-    # tests and CI exercise flatland.evaluators, so the dev env installs that extra too
-    "flatland-rl[evaluator]",
+    # tests and CI exercise flatland.evaluators and run the notebooks, so the dev env
+    # installs both extras too
+    "flatland-rl[evaluator,notebooks]",
     "benchmarker",
     "bumpversion",
     "coverage",

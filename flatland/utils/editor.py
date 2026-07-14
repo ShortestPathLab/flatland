@@ -3,8 +3,9 @@ import time
 from collections import deque
 
 import ipywidgets
-import jpy_canvas
 import numpy as np
+from ipycanvas import Canvas
+from ipyevents import Event
 from ipywidgets import IntSlider, VBox, HBox, Checkbox, Output, Text, RadioButtons, Tab
 from numpy import array
 
@@ -54,11 +55,22 @@ class View(object):
         self.new_env()
         self.oRT.render_env(show=False)
         img = self.oRT.get_image()
-        self.wImage = jpy_canvas.Canvas(img)
-        self.yxSize = self.wImage.data.shape[:2]
-        self.writableData = np.copy(self.wImage.data)  # writable copy of image - wid_img.data is somehow readonly
-        self.wImage.register_move(self.controller.on_mouse_move)
-        self.wImage.register_click(self.controller.on_click)
+        self.yxSize = img.shape[:2]
+        self.wImage = Canvas(width=self.yxSize[1], height=self.yxSize[0])
+        self.writableData = np.copy(img)  # writable copy of image, on which the drag trail is drawn
+        self.wImage.put_image_data(self.writableData)
+
+        # ipycanvas passes only (x, y) to its own mouse callbacks, but the editor also needs the
+        # modifier keys and the button state: ctrl selects an agent, shift+ctrl sets its target,
+        # alt clears a cell, and holding a button down draws rail. ipyevents forwards the whole
+        # DOM event, so mouse input is taken from there instead.
+        self.event_handler = Event(
+            source=self.wImage,
+            watched_events=['click', 'mousemove'],
+            # otherwise the browser starts a text/image selection when drawing a stroke
+            prevent_default_action=True,
+        )
+        self.event_handler.on_dom_event(self.controller.on_dom_event)
 
         self.yxBase = self.oRT.gl.yxBase
         self.nPixCell = self.oRT.gl.nPixCell
@@ -98,12 +110,13 @@ class View(object):
         self.replace_agents = Checkbox(value=True, description="Replace Agents")
 
         self.wTab = Tab()
-        tab_contents = ["Regen", "Observation"]
-        for i, title in enumerate(tab_contents):
-            self.wTab.set_title(i, title)
+        # ipywidgets >= 8 sizes the title list from the children, so children must be set first.
         self.wTab.children = [
             VBox([self.regen_width, self.regen_height, self.regen_n_agents, self.regen_method])
         ]
+        tab_contents = ["Regen"]
+        for i, title in enumerate(tab_contents):
+            self.wTab.set_title(i, title)
 
         # abbreviated description of buttons and the methods they call
         ldButtons = [
@@ -161,17 +174,23 @@ class View(object):
                                 )
             img = self.oRT.get_image()
 
-            self.wImage.data = img
-            self.writableData = np.copy(self.wImage.data)
+            self.writableData = np.copy(img)
 
             # the size should only be updated on regenerate at most
-            self.yxSize = self.wImage.data.shape[:2]
+            self.yxSize = img.shape[:2]
+
+            # resizing the canvas clears it, so only do it when the env size actually changed
+            if (self.wImage.width, self.wImage.height) != (self.yxSize[1], self.yxSize[0]):
+                self.wImage.width = self.yxSize[1]
+                self.wImage.height = self.yxSize[0]
+
+            self.wImage.put_image_data(self.writableData)
             return img
 
     def redisplay_image(self):
         if self.writableData is not None:
             # This updates the image in the browser to be the new edited version
-            self.wImage.data = self.writableData
+            self.wImage.put_image_data(self.writableData)
 
     def drag_path_element(self, x, y):
         # Draw a black square on the in-memory copy of the image
@@ -213,9 +232,20 @@ class Controller(object):
     def set_model(self, model):
         self.model = model
 
-    def on_click(self, wid, event):
-        x = event['canvasX']
-        y = event['canvasY']
+    def on_dom_event(self, event):
+        """ Route a raw DOM event from ipyevents.
+            ipyevents delivers every watched event type through a single callback,
+            so dispatch on the type here.
+        """
+        event_type = event["type"]
+        if event_type == "click":
+            self.on_click(event)
+        elif event_type == "mousemove":
+            self.on_mouse_move(event)
+
+    def on_click(self, event):
+        x = event['relativeX']
+        y = event['relativeY']
         self.debug("debug:", x, y)
 
         rc_cell = self.view.xy_to_rc(x, y)
@@ -251,12 +281,12 @@ class Controller(object):
     def set_filename(self, event):
         self.model.set_filename(event["new"])
 
-    def on_mouse_move(self, wid, event):
+    def on_mouse_move(self, event):
         """Mouse motion event handler for drawing.
         """
 
-        x = event['canvasX']
-        y = event['canvasY']
+        x = event['relativeX']
+        y = event['relativeY']
         q_events = self.q_events
 
         if self.model.debug_bool and (event["buttons"] > 0 or self.model.debug_move_bool):

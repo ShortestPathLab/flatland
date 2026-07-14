@@ -49,14 +49,20 @@ This is the preferred method to install Flatland, as it will always install the 
 
 ### Optional extras
 
-The base install gives you the environment and the renderer. The evaluation service (`flatland-evaluator`, used to
-grade challenge submissions) has additional dependencies, installed via the `evaluator` extra:
+The base install gives you everything needed to build, step and render an environment. The rest is opt-in:
+
+| Extra | Adds | Needed for |
+| --- | --- | --- |
+| `evaluator` | crowdai-api, redis, pandas, timeout-decorator, msgpack-numpy | `flatland.evaluators` and the `flatland-evaluator` script, used to grade challenge submissions |
+| `notebooks` | ipycanvas, ipython, ipywidgets | `flatland.utils.jupyter_utils` and `flatland.utils.editor`, the in-notebook helpers |
+| `aws` | boto3 | S3 upload support in the evaluation service |
+
+Install them individually or together:
 
 ```console
 $ pip install 'flatland-rl[evaluator]'
+$ pip install 'flatland-rl[evaluator,notebooks]'
 ```
-
-There is also an `aws` extra, which adds S3 upload support to the evaluation service.
 
 ### From sources
 

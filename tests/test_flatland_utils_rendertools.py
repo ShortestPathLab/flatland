@@ -7,7 +7,7 @@ Tests for `flatland` package.
 import sys
 
 import numpy as np
-from importlib_resources import path
+from importlib.resources import as_file, files
 
 import flatland.utils.rendertools as rt
 import images.test
@@ -26,7 +26,7 @@ def checkFrozenImage(oRT, sFileImage, resave=False):
         np.savez_compressed(sDirImages + sFileImage, img=img_test)
         return
 
-    with path(images, sFileImage) as file_in:
+    with as_file(files(images).joinpath(sFileImage)) as file_in:
         np.load(file_in)
 
     # TODO fails!

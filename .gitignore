@@ -85,6 +85,9 @@ target/
 # uv build/download cache (see .gitlab-ci.yml)
 .uv-cache/
 
+# ruff
+.ruff_cache/
+
 # celery beat schedule file
 celerybeat-schedule
 

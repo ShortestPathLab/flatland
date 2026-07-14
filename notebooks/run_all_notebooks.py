@@ -2,9 +2,8 @@ import shlex
 import sys
 from subprocess import Popen, PIPE
 
-import importlib_resources
-import pkg_resources
-from importlib_resources import path
+from importlib.resources import as_file, files
+
 from ipython_genutils.py3compat import string_types, bytes_to_str
 
 
@@ -38,15 +37,15 @@ def run_python(parameters, ignore_return_code=False, stdin=None):
     return stdout.decode('utf8', 'replace'), stderr.decode('utf8', 'replace')
 
 
-for entry in [entry for entry in importlib_resources.contents('notebooks') if
-              not pkg_resources.resource_isdir('notebooks', entry)
-              and entry.endswith(".ipynb")
+for entry in [entry.name for entry in files('notebooks').iterdir() if
+              entry.is_file()
+              and entry.name.endswith(".ipynb")
               ]:
     print("*****************************************************************")
     print("Converting and running {}".format(entry))
     print("*****************************************************************")
 
-    with path('notebooks', entry) as file_in:
+    with as_file(files('notebooks').joinpath(entry)) as file_in:
         out, err = run_python(" -m jupyter nbconvert --execute --to notebook --inplace " + str(file_in))
         sys.stderr.write(err)
         sys.stderr.flush()

@@ -131,8 +131,8 @@ class RailEnvPersister(object):
     def load_env_dict(cls, filename, load_from_package=None):
 
         if load_from_package is not None:
-            from importlib_resources import read_binary
-            load_data = read_binary(load_from_package, filename)
+            from importlib.resources import files
+            load_data = files(load_from_package).joinpath(filename).read_bytes()
         else:
             with open(filename, "rb") as file_in:
                 load_data = file_in.read()

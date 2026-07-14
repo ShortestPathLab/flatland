@@ -19,8 +19,6 @@ dependencies = [
     "click",
     "crowdai-api",
     "graphviz",
-    "gymnasium",
-    "importlib-resources",
     "ipycanvas",
     "ipywidgets",
     "matplotlib",
@@ -33,7 +31,6 @@ dependencies = [
     "pyglet",
     "recordtype",
     "redis",
-    "svgutils",
     "timeout-decorator",
 ]
 

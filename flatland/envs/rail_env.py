@@ -27,7 +27,6 @@ from flatland.envs import persistence
 from flatland.envs import agent_chains as ac
 
 from flatland.envs.observations import GlobalObsForRailEnv
-from gymnasium.utils import seeding
 
 # Direct import of objects / classes does not work with circular imports.
 # from flatland.envs.malfunction_generators import no_malfunction_generator, Malfunction, MalfunctionProcessData
@@ -274,7 +273,11 @@ class RailEnv(Environment):
         self.motionCheck = ac.MotionCheck()
 
     def _seed(self, seed=None):
-        self.np_random, seed = seeding.np_random(seed)
+        # Same construction gym/gymnasium's seeding.np_random used: a PCG64 Generator
+        # from a SeedSequence, whose entropy is the seed actually applied when seed is None.
+        seed_seq = np.random.SeedSequence(seed)
+        self.np_random = np.random.default_rng(seed_seq)
+        seed = seed_seq.entropy
         random.seed(seed)
         return [seed]
 

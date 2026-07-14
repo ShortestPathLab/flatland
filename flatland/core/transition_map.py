@@ -3,7 +3,7 @@ TransitionMap and derived classes.
 """
 
 import numpy as np
-from importlib_resources import path
+from importlib.resources import as_file, files
 from numpy import array
 
 from flatland.core.grid.grid4 import Grid4Transitions
@@ -298,7 +298,7 @@ class GridTransitionMap(TransitionMap):
             (height,width) )
 
         """
-        with path(package, resource) as file_in:
+        with as_file(files(package).joinpath(resource)) as file_in:
             new_grid = np.load(file_in)
 
         new_height = new_grid.shape[0]

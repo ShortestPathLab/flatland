@@ -3,15 +3,13 @@ import runpy
 import sys
 from io import StringIO
 
-import importlib_resources
-import pkg_resources
-from importlib_resources import path
+from importlib.resources import as_file, files
 
 from benchmarks.benchmark_utils import swap_attr
 
 
 def profile(resource, entry):
-    with path(resource, entry) as file_in:
+    with as_file(files(resource).joinpath(entry)) as file_in:
         # TODO remove input() from examples
         print("*****************************************************************")
         print("Profiling {}".format(entry))
@@ -24,11 +22,11 @@ def profile(resource, entry):
             cProfile.run('my_func()', sort='time')
 
 
-for entry in [entry for entry in importlib_resources.contents('examples') if
-              not pkg_resources.resource_isdir('examples', entry)
-              and entry.endswith(".py")
-              and '__init__' not in entry
-              and 'demo.py' not in entry
-              and 'DELETE' not in entry
+for entry in [entry.name for entry in files('examples').iterdir() if
+              entry.is_file()
+              and entry.name.endswith(".py")
+              and '__init__' not in entry.name
+              and 'demo.py' not in entry.name
+              and 'DELETE' not in entry.name
               ]:
     profile('examples', entry)

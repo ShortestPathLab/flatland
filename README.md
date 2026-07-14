@@ -11,11 +11,14 @@ they break down at inconvenient moments.
 This repository is maintained by [ShortestPathLab](https://github.com/ShortestPathLab) and is used to teach
 [FIT5222 Planning and Automated Reasoning](https://handbook.monash.edu/current/units/FIT5222) at Monash University.
 
-Flatland is tested with Python 3.14 on modern versions of macOS, Linux and Windows. You may encounter problems with
-graphical rendering if you use WSL.
+Flatland is tested with Python 3.14 on modern versions of macOS, Linux and Windows, and inside WSL.
 
 📦 Setup
 ---
+
+New to this — or to Python, Git and the terminal generally? Follow the
+[Getting Started guide](GETTING_STARTED.md), which walks through the setup from scratch on every
+supported platform. The rest of this section is the short version.
 
 ### Prerequisites
 

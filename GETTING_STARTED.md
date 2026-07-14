@@ -19,9 +19,8 @@ for downloads.
 - [Step 1: Install Git](#step-1-install-git)
 - [Step 2: Install uv](#step-2-install-uv)
 - [Step 3: Download Flatland](#step-3-download-flatland)
-- [Step 4: Install Flatland](#step-4-install-flatland)
-- [Step 5: Check it works](#step-5-check-it-works)
-- [Step 6: Start your assignment](#step-6-start-your-assignment)
+- [Step 4: Run it](#step-4-run-it)
+- [Step 5: Start your assignment](#step-5-start-your-assignment)
 - [Troubleshooting](#troubleshooting)
 
 Flatland is tested with Python 3.14 on modern versions of Windows, macOS and Linux, and inside WSL
@@ -202,35 +201,41 @@ close your terminal and come back later, you will need to `cd` back here first.
 
 ---
 
-Step 4: Install Flatland
+Step 4: Run it
 ---
 
-One command installs everything — the right Python, Flatland itself, and every dependency, all
-pinned to the exact versions in `uv.lock`:
+There is no install step. Run the built-in demo — a small grid where five trains move at random —
+and everything installs itself on the way:
 
 ```console
-$ uv sync
+$ uv run flatland demo
 ```
 
-The first run downloads a lot and takes a few minutes. Later runs take seconds.
+**The first run will sit there for a few minutes.** Before running anything, `uv run` reads
+Flatland's `.python-version` and `uv.lock`, downloads the exact Python and the exact dependencies
+they name, and puts them in a hidden `.venv` folder inside the project — a **virtual environment**, a
+private Python installation used by this project alone. That is the wait. Later runs reuse it and
+start in seconds.
 
-This creates a hidden `.venv` folder inside the project: a **virtual environment**, a private Python
-installation used by this project alone. You never have to "activate" it — prefixing a command with
-`uv run` (below) does that for you.
+You never have to "activate" that environment: `uv run` does it for you, every time. This is how you
+run *everything* in this project. Use `uv run python my_script.py`, not `python my_script.py`.
 
-### The window: install the `native` extra
+Once the download finishes, a window opens showing trains moving on rails. When the episode ends the
+window closes and the terminal prints how many steps it took. **If you see that, your setup is
+complete.**
+
+### The window
 
 Flatland draws its simulations by running a small web server and displaying the frames it produces.
 It can show those frames in two places:
 
 - a **desktop window** that opens by itself, sits alongside your editor, and closes when the run
-  ends — this is what you want;
+  ends — this is what you want, and what you just saw;
 - a **browser tab** you have to open by hand from a URL, and close by hand afterwards.
 
-The desktop window is the `native` extra, and **we recommend it**. `uv sync` on a clone of this
-repository installs it for you already, so if you followed Step 3 you have it. The assignment
-template ([Step 6](#step-6-start-your-assignment)) asks for it too, so you get the window there
-without doing anything.
+The desktop window needs one extra package, `pywebview`. On a clone of this repository you get it
+automatically, and the assignment template ([Step 5](#step-5-start-your-assignment)) asks for it too,
+so you should never have to think about it.
 
 Two platform notes:
 
@@ -239,23 +244,7 @@ Two platform notes:
 - **Linux desktop**: the window needs system GTK/WebKit libraries that pip cannot install. See
   [Troubleshooting](#the-window-does-not-open-on-linux) if it falls back to a browser tab.
 
----
-
-Step 5: Check it works
----
-
-Run the built-in demo — a small grid where five trains move at random:
-
-```console
-$ uv run flatland demo
-```
-
-A window should open showing trains moving on rails. When the episode finishes, the window closes and
-the terminal prints how many steps it took. **If you see that, your setup is complete.**
-
-`uv run` is how you run *everything* in this project: it finds the project's virtual environment,
-makes sure it is up to date, and runs your command inside it. Use `uv run python my_script.py`, not
-`python my_script.py`.
+### Other things to try
 
 A few variations worth knowing:
 
@@ -275,7 +264,7 @@ $ uv run pytest
 
 ---
 
-Step 6: Start your assignment
+Step 5: Start your assignment
 ---
 
 The clone from Step 3 is the *library*. Your assignment is your own code, and it belongs in its own
@@ -286,7 +275,7 @@ the same Python, and gives you somewhere to put your planner:
 
 **[github.com/ShortestPathLab/fit5222-a1-template](https://github.com/ShortestPathLab/fit5222-a1-template)**
 
-Follow the README there. Everything you have installed in Steps 1–5 is what it expects, so the
+Follow the README there. Git and uv, from Steps 1 and 2, are all it expects of your machine, so the
 template's own setup is short.
 
 ### Where to go next
@@ -352,7 +341,10 @@ Flatland never fails hard here: if it cannot open a window, it serves the same s
 browser and prints the address. Open that address (usually `http://127.0.0.1:8080/`) and you will see
 exactly the same thing. Your setup is *working* — only the window is missing.
 
-To get the window back, check you installed the `native` extra ([Step 4](#the-window-install-the-native-extra)).
+In a clone of this repository the window package is installed for you, so a URL here usually means
+your platform could not open the window rather than that anything is missing — see the two sections
+below. In a project of your own, it means the dependency was added without the `native` extra: ask
+for `flatland-spl[native]`, not plain `flatland-spl` (see [The window](#the-window)).
 
 ### The window does not open on Linux
 

@@ -41,7 +41,7 @@ class RenderTool(object):
                  agent_render_variant=AgentRenderVariant.ONE_STEP_BEHIND,
                  show_debug=False, clear_debug_text=True,
                  screen_width=None, screen_height=None, cell_size=None,
-                 host=None, port=None, wait_for_client=False, native=None, exit_on_close=None,
+                 host=None, port=None, wait_for_client=None, native=None, exit_on_close=None,
                  image_format=None, quality=None, max_fps=None):
         """
         screen_width/screen_height
@@ -192,7 +192,7 @@ class RenderLocal(RenderBase):
     def __init__(self, env, gl="WEB", jupyter=False,
                  agent_render_variant=AgentRenderVariant.ONE_STEP_BEHIND,
                  show_debug=False, clear_debug_text=True, screen_width=800, screen_height=600,
-                 cell_size=None, host=None, port=None, wait_for_client=False, native=None,
+                 cell_size=None, host=None, port=None, wait_for_client=None, native=None,
                  exit_on_close=None, image_format=None, quality=None, max_fps=None):
 
         self.env = env
@@ -215,11 +215,12 @@ class RenderLocal(RenderBase):
         else:
             kwargs = {k: v for k, v in
                       dict(image_format=image_format, quality=quality, max_fps=max_fps,
-                           native=native, exit_on_close=exit_on_close).items()
+                           native=native, exit_on_close=exit_on_close,
+                           wait_for_client=wait_for_client).items()
                       if v is not None}
             self.gl = WEBGL(env.width, env.height, jupyter, screen_width=screen_width,
                             screen_height=screen_height, cell_size=cell_size,
-                            host=host, port=port, wait_for_client=wait_for_client, **kwargs)
+                            host=host, port=port, **kwargs)
 
         self.new_rail = True
         self.show_debug = show_debug

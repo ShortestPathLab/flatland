@@ -80,6 +80,12 @@ def demo(
         typer.Option("--no-render",
                      help="Do not visualise at all: no window, no server, no frames."),
     ] = False,
+    wait: Annotated[
+        bool,
+        typer.Option("--wait/--no-wait",
+                     help="Hold the first frame until someone is watching, so you see the "
+                          "run from step 0. --no-wait starts immediately."),
+    ] = True,
     host: Annotated[Optional[str], typer.Option(help="Address to serve on.")] = None,
     port: Annotated[Optional[int], typer.Option(help="Port to serve on.")] = None,
     cell_size: Annotated[
@@ -133,6 +139,7 @@ def demo(
             image_format=image_format.value,
             quality=quality,
             native=not headless,
+            wait_for_client=wait,
         )
 
     episode = 0

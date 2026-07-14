@@ -43,7 +43,7 @@ PAUSED_AFTER = 1.5
 # page reload or a dropped-and-resumed socket, both of which briefly show zero
 # viewers: mistaking either for "nobody is watching" would kill the run under
 # someone who is very much still there.
-VIEWER_GRACE = 6.0
+VIEWER_GRACE = 1.0
 
 # One server per process, shared by every RenderTool. Registering a route per
 # renderer would mean mutating the route table after uvicorn has started; the
@@ -149,10 +149,11 @@ def _run_windows(args, timeout=15):
     try:
         # cwd=/mnt/c: run from a path Windows can represent, or cmd.exe warns and
         # refuses to expand anything.
-        out = subprocess.run(args, cwd="/mnt/c", capture_output=True, text=True,
-                             timeout=timeout)
+        out = subprocess.run(
+            args, cwd="/mnt/c", capture_output=True, text=True, timeout=timeout
+        )
         return out.stdout.replace("\r", "")
-    except (OSError, subprocess.SubprocessError):
+    except OSError, subprocess.SubprocessError:
         return ""
 
 
@@ -226,7 +227,10 @@ def _try_open_wsl_window(url, title="Flatland", size=(400, 400)):
     deadline = time.monotonic() + NATIVE_STARTUP_GRACE
     while time.monotonic() < deadline:
         if proc.poll() is not None:
-            return None, f"the Windows window exited immediately (code {proc.returncode})"
+            return (
+                None,
+                f"the Windows window exited immediately (code {proc.returncode})",
+            )
         time.sleep(0.1)
     return proc, None
 
@@ -409,7 +413,9 @@ class _Server:
                 f"height:{BAR}; gap:1.25rem; align-items:center; padding:0 .75rem;"
                 " font-family:ui-monospace,monospace; font-size:.78rem;"
                 " color:#4b5563; width:100%; justify-content:center;"
-                " flex:0 0 auto;" if fit else "gap:1.25rem;"
+                " flex:0 0 auto;"
+                if fit
+                else "gap:1.25rem;"
             ):
                 state = ui.label()
                 step = ui.label()
@@ -420,13 +426,19 @@ class _Server:
                 s = renderer.stats()
                 playing = s.get("playing")
                 state.set_text(("▶ playing" if playing else "⏸ paused"))
-                state.style(f"font-weight:600; color:{'#15803d' if playing else '#b45309'}")
+                state.style(
+                    f"font-weight:600; color:{'#15803d' if playing else '#b45309'}"
+                )
 
                 n, cap_ = s.get("step"), s.get("max_steps")
-                step.set_text(f"step {n}{f' / {cap_}' if cap_ else ''}" if n is not None else "")
+                step.set_text(
+                    f"step {n}{f' / {cap_}' if cap_ else ''}" if n is not None else ""
+                )
 
                 total = s.get("agents") or 0
-                arrived.set_text(f"arrived {s.get('done', 0)} / {total}" if total else "")
+                arrived.set_text(
+                    f"arrived {s.get('done', 0)} / {total}" if total else ""
+                )
 
                 fps.set_text(f"{s['fps']:.0f} fps" if playing and s.get("fps") else "")
 
@@ -558,7 +570,7 @@ class WEBGL(PILSVG):
         cell_size=None,
         host=None,
         port=None,
-        wait_for_client=False,
+        wait_for_client=None,
         image_format="jpeg",
         quality=90,
         max_fps=30,
@@ -572,6 +584,12 @@ class WEBGL(PILSVG):
             installed - the render server keeps running regardless, and the URL
             to open in a browser is printed instead. Set False to never attempt
             it.
+        wait_for_client
+            Hold the first frame until someone is actually watching, so you see
+            the run from step 0 rather than opening the link to find the episode
+            half over. Defaults to whatever `exit_on_close` is: the run then
+            lasts exactly as long as a viewer does, from both ends. Times out
+            after 300s and carries on regardless.
         exit_on_close
             The run ends when you stop watching it (default True). That means
             closing the native window, and also the *last* viewer disconnecting -
@@ -605,9 +623,18 @@ class WEBGL(PILSVG):
 
         self.host = host or os.environ.get("FLATLAND_RENDER_HOST", DEFAULT_HOST)
         self.port = int(port or os.environ.get("FLATLAND_RENDER_PORT", DEFAULT_PORT))
-        self.wait_for_client_on_open = wait_for_client
         self.native = native and os.environ.get("FLATLAND_RENDER_NATIVE", "1") != "0"
         self.exit_on_close = exit_on_close
+
+        # Follows exit_on_close by default, because the two are the same promise
+        # seen from either end: the run lasts exactly as long as someone is
+        # watching it. Starting without waiting would mean opening the link to
+        # find the episode already half over - and then the run would still end
+        # when you left. A side-view onto a long job (exit_on_close=False) must
+        # never block, so it does not wait either.
+        self.wait_for_client_on_open = (
+            exit_on_close if wait_for_client is None else wait_for_client
+        )
         self._native_proc = None
 
         self.image_format = image_format.lower()
@@ -663,9 +690,13 @@ class WEBGL(PILSVG):
                         f"{server.host}. Bind 0.0.0.0 (the default) instead."
                     )
                 else:
-                    self._native_proc, reason = _try_open_wsl_window(window_url, size=size)
+                    self._native_proc, reason = _try_open_wsl_window(
+                        window_url, size=size
+                    )
             else:
-                self._native_proc, reason = _try_open_native_window(window_url, size=size)
+                self._native_proc, reason = _try_open_native_window(
+                    window_url, size=size
+                )
 
             opened_native = self._native_proc is not None
             if opened_native and self.exit_on_close:
@@ -690,7 +721,8 @@ class WEBGL(PILSVG):
         # "nothing is happening yet" and "you never opened the link" look
         # identical from the terminal, which is exactly where people get stuck.
         self._status = console.RenderStatus(
-            url, server.port,
+            url,
+            server.port,
             get_viewers=lambda: server.clients,
             get_stats=self.stats,
             native=opened_native,
@@ -825,8 +857,8 @@ class WEBGL(PILSVG):
                 if delta > 0:
                     # Smoothed, or it jitters unreadably at speed.
                     instant = 1.0 / delta
-                    self._fps = instant if not self._fps else (
-                        0.8 * self._fps + 0.2 * instant
+                    self._fps = (
+                        instant if not self._fps else (0.8 * self._fps + 0.2 * instant)
                     )
             self._last_show = now
 

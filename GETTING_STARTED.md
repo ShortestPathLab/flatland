@@ -227,8 +227,7 @@ add Flatland to your *own* project — see [Step 6](#step-6-start-your-assignmen
 Two platform notes:
 
 - **WSL**: the window is a genuine Windows window, launched from Linux via Microsoft Edge in app
-  mode. It works out of the box with no extra setup and no X server. (This is why the old warning
-  about WSL and graphical rendering is gone: it no longer applies.)
+  mode. It works out of the box with no extra setup and no X server.
 - **Linux desktop**: the window needs system GTK/WebKit libraries that pip cannot install. See
   [Troubleshooting](#the-window-does-not-open-on-linux) if it falls back to a browser tab.
 
@@ -420,8 +419,7 @@ If that does not do it, use the browser tab — you lose nothing but convenience
 ### The window does not open in WSL
 
 The WSL window is a Windows Edge or Chrome window launched from Linux, so it needs one of those
-installed on the **Windows** side. Both are standard on Windows 11 (Edge ships with the OS), so this
-rarely bites.
+installed on the **Windows** side. Both are standard on Windows 11 (Edge ships with the OS), so this shouldn't usually happen.
 
 The one thing that will break it is binding the server to a specific address: Windows can only reach
 the server through WSL's loopback forwarding, which covers the default wildcard bind. Do not pass

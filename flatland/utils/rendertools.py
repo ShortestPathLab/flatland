@@ -610,7 +610,7 @@ class RenderLocal(RenderBase):
         # RenderLocal is the only thing here that holds the env, so it is the only
         # thing that can say what step we are on. Layers that display nothing
         # (PIL, PILSVG) have no use for it.
-        if hasattr(self.gl, "set_stats"):
+        if isinstance(self.gl, WEBGL):
             self.gl.set_stats(self._env_stats(episode, step))
 
         # Both sprite-based layers (WEBGL subclasses PILSVG); "PIL" is the

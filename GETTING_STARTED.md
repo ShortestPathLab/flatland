@@ -5,6 +5,13 @@ This guide takes you from a fresh computer to a Flatland simulation running in a
 screen. It assumes **no prior experience** with terminals, Git or Python environments — if you have
 used them before, skip ahead; nothing here is out of order.
 
+> **Doing the assignment?** This guide sets up Flatland *on its own* — the library, and a demo you can
+> watch run. It is not the assignment setup. For that, follow the README in the assignment template,
+> [ShortestPathLab/fit5222-a1-template](https://github.com/ShortestPathLab/fit5222-a1-template),
+> which brings Flatland in as a dependency. The steps below are still the right place to start if you
+> want Flatland by itself, or if you hit a setup problem the template's README does not cover — the
+> [Troubleshooting](#troubleshooting) section applies to both.
+
 Work through the steps in sequence. The whole thing takes about 15 minutes, most of which is waiting
 for downloads.
 
@@ -221,8 +228,9 @@ It can show those frames in two places:
 - a **browser tab** you have to open by hand from a URL, and close by hand afterwards.
 
 The desktop window is the `native` extra, and **we recommend it**. `uv sync` on a clone of this
-repository installs it for you already, so if you followed Step 3 you have it. It matters when you
-add Flatland to your *own* project — see [Step 6](#step-6-start-your-assignment).
+repository installs it for you already, so if you followed Step 3 you have it. The assignment
+template ([Step 6](#step-6-start-your-assignment)) asks for it too, so you get the window there
+without doing anything.
 
 Two platform notes:
 
@@ -273,71 +281,13 @@ Step 6: Start your assignment
 The clone from Step 3 is the *library*. Your assignment is your own code, and it belongs in its own
 project folder so that your work stays separate from Flatland's source.
 
-If your unit gives you a starter repository, `git clone` that and follow its README — it will already
-list Flatland as a dependency, and `uv sync` inside it is all you need.
+Start from the assignment template, not from an empty folder — it already depends on Flatland, pins
+the same Python, and gives you somewhere to put your planner:
 
-If you are starting from scratch, create a project and add Flatland to it. Note the `[native]` — that
-is the desktop window from Step 4, and this is the moment you have to ask for it:
+**[github.com/ShortestPathLab/fit5222-a1-template](https://github.com/ShortestPathLab/fit5222-a1-template)**
 
-```console
-$ cd ..
-$ uv init my-assignment
-$ cd my-assignment
-$ uv add "flatland-spl[native] @ git+https://github.com/ShortestPathLab/flatland"
-```
-
-> The package is published as **`flatland-spl`** (plain `flatland` on PyPI is an unrelated project),
-> but the name you `import` in Python is still **`flatland`**.
-
-Save this as `demo.py` in your new project to check everything is wired up:
-
-```python
-import time
-
-import numpy as np
-
-from flatland.envs.rail_env import RailEnv, RailEnvActions
-from flatland.envs.rail_generators import complex_rail_generator
-from flatland.envs.schedule_generators import complex_schedule_generator
-from flatland.utils.rendertools import RenderTool
-
-env = RailEnv(
-    width=15,
-    height=15,
-    rail_generator=complex_rail_generator(
-        nr_start_goal=10, nr_extra=1, min_dist=8, max_dist=99999, seed=1
-    ),
-    schedule_generator=complex_schedule_generator(),
-    number_of_agents=5,
-)
-env.reset()
-
-# native=True opens the desktop window; wait_for_client holds the first frame
-# until the window is actually up, so you see the run from step 0.
-renderer = RenderTool(env, native=True, wait_for_client=True)
-renderer.reset()
-
-# Random actions, purely to prove the setup works. Replacing this with a real
-# planner is the assignment.
-rng = np.random.default_rng(0)
-done = {"__all__": False}
-while not done["__all__"]:
-    actions = {i: RailEnvActions(int(rng.integers(0, 5))) for i, _ in enumerate(env.agents)}
-    _, _, done, _ = env.step(actions)
-    renderer.render_env(show=True)
-    time.sleep(0.2)
-
-renderer.close_window()
-```
-
-Run it:
-
-```console
-$ uv run python demo.py
-```
-
-The trains move at random, so they mostly bump into each other and the episode ends after 240 steps.
-Making them do something intelligent is the point of the assignment.
+Follow the README there. Everything you have installed in Steps 1–5 is what it expects, so the
+template's own setup is short.
 
 ### Where to go next
 

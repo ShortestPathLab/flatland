@@ -178,7 +178,9 @@ class Grid4Transitions(Transitions):
         if new_transition:
             cell_transition |= (1 << ((4 - 1 - orientation) * 4 + (4 - 1 - direction)))
         else:
-            cell_transition &= ~(1 << ((4 - 1 - orientation) * 4 + (4 - 1 - direction)))
+            # Mask the complement back into 16 bits: transitions are stored as uint16, and
+            # numpy >= 2 rejects the negative Python int that a bare ~ produces.
+            cell_transition &= ~(1 << ((4 - 1 - orientation) * 4 + (4 - 1 - direction))) & 0xFFFF
 
         if remove_deadends:
             cell_transition = self.remove_deadends(cell_transition)

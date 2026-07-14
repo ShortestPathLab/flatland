@@ -1,6 +1,5 @@
 import sys
 
-import numpy as np
 
 from flatland.core.grid.grid4 import Grid4TransitionsEnum
 from flatland.envs.observations import GlobalObsForRailEnv
@@ -112,7 +111,10 @@ def test_get_shortest_paths():
     }
 
     for agent_handle in expected:
-        assert np.array_equal(actual[agent_handle], expected[agent_handle]), \
+        # plain ==, not np.array_equal: these are lists of Waypoint(position=(r, c), direction=d),
+        # an inhomogeneous structure that numpy >= 2 refuses to turn into an array. np.array_equal
+        # swallows that error and just returns False, so the assert could never pass.
+        assert actual[agent_handle] == expected[agent_handle], \
             "[{}] actual={},expected={}".format(agent_handle, actual[agent_handle], expected[agent_handle])
 
 
@@ -136,7 +138,10 @@ def test_get_shortest_paths_max_depth():
     }
 
     for agent_handle in expected:
-        assert np.array_equal(actual[agent_handle], expected[agent_handle]), \
+        # plain ==, not np.array_equal: these are lists of Waypoint(position=(r, c), direction=d),
+        # an inhomogeneous structure that numpy >= 2 refuses to turn into an array. np.array_equal
+        # swallows that error and just returns False, so the assert could never pass.
+        assert actual[agent_handle] == expected[agent_handle], \
             "[{}] actual={},expected={}".format(agent_handle, actual[agent_handle], expected[agent_handle])
 
 
@@ -227,7 +232,10 @@ def test_get_shortest_paths_agent_handle():
                      ]}
 
     for agent_handle in expected:
-        assert np.array_equal(actual[agent_handle], expected[agent_handle]), \
+        # plain ==, not np.array_equal: these are lists of Waypoint(position=(r, c), direction=d),
+        # an inhomogeneous structure that numpy >= 2 refuses to turn into an array. np.array_equal
+        # swallows that error and just returns False, so the assert could never pass.
+        assert actual[agent_handle] == expected[agent_handle], \
             "[{}] actual={},expected={}".format(agent_handle, actual[agent_handle], expected[agent_handle])
 
 

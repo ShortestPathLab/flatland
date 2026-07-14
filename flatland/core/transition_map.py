@@ -142,6 +142,10 @@ class GridTransitionMap(TransitionMap):
         else:
             self.random_generator.seed(random_seed)
         self.grid = np.zeros((height, width), dtype=self.transitions.get_type())
+        # Per-cell count of how many rail connections have been routed through a cell.
+        # The sparse rail generator overwrites this and grid4_generators_utils increments it;
+        # a_star reads it, so it has to exist even when the grid is built some other way.
+        self.reserve = np.zeros((height, width), dtype=self.transitions.get_type())
 
     def get_full_transitions(self, row, column):
         """
@@ -560,7 +564,10 @@ class GridTransitionMap(TransitionMap):
         if number_of_incoming == 2:
             self.set_transitions(rcPos, 0)
 
-            connect_directions = np.argwhere(incoming_connections > 0)
+            # flatnonzero, not argwhere: argwhere on a 1-D array yields shape (n, 1), so each
+            # element would be a 1-element array rather than a scalar direction, and numpy >= 2
+            # refuses to assign that into a grid cell.
+            connect_directions = np.flatnonzero(incoming_connections > 0)
             self.set_transition((rcPos[0], rcPos[1], mirror(connect_directions[0])), connect_directions[1], 1)
             self.set_transition((rcPos[0], rcPos[1], mirror(connect_directions[1])), connect_directions[0], 1)
 
@@ -575,9 +582,11 @@ class GridTransitionMap(TransitionMap):
                 elif switch_type_idx == 2:
                     transition = simple_switch_east_south
                 else:
-                    transition = self.random_generator.choice(three_way_transitions, 1)
+                    # take the scalar out of the 1-element array: the other branches yield a
+                    # scalar transition, and numpy >= 2 will not assign a sequence into a cell
+                    transition = self.random_generator.choice(three_way_transitions, 1)[0]
             else:
-                transition = self.random_generator.choice(three_way_transitions, 1)
+                transition = self.random_generator.choice(three_way_transitions, 1)[0]
             transition = transitions.rotate_transition(transition, int(hole * 90))
             self.set_transitions((rcPos[0], rcPos[1]), transition)
 

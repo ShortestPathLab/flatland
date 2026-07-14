@@ -127,8 +127,8 @@ def complex_rail_generator(nr_start_goal=1,
         while nr_created < nr_start_goal and created_sanity < sanity_max:
             all_ok = False
             for _ in range(sanity_max):
-                start = (np_random.randint(0, height), np_random.randint(0, width))
-                goal = (np_random.randint(0, height), np_random.randint(0, width))
+                start = (np_random.integers(0, height), np_random.integers(0, width))
+                goal = (np_random.integers(0, height), np_random.integers(0, width))
 
                 # check to make sure start,goal pos is empty?
                 if rail_array[goal] != 0 or rail_array[start] != 0:
@@ -181,8 +181,8 @@ def complex_rail_generator(nr_start_goal=1,
         while nr_created < nr_extra and created_sanity < sanity_max:
             all_ok = False
             for _ in range(sanity_max):
-                start = (np_random.randint(0, height), np_random.randint(0, width))
-                goal = (np_random.randint(0, height), np_random.randint(0, width))
+                start = (np_random.integers(0, height), np_random.integers(0, width))
+                goal = (np_random.integers(0, height), np_random.integers(0, width))
                 # check to make sure start,goal pos are not empty
                 if rail_array[goal] == 0 or rail_array[start] == 0:
                     continue
@@ -765,8 +765,8 @@ class SparseRailGen(RailGen):
             tries = 0
 
             while too_close:
-                row = city_radius + 1 + np_random.randint(height - 2 * (city_radius + 1))
-                col = city_radius + 1 + np_random.randint(width - 2 * (city_radius + 1))
+                row = city_radius + 1 + np_random.integers(height - 2 * (city_radius + 1))
+                col = city_radius + 1 + np_random.integers(width - 2 * (city_radius + 1))
                 too_close = False
                 # Check distance to cities
                 for city_pos in city_positions:
@@ -887,7 +887,7 @@ class SparseRailGen(RailGen):
             connection_sides_idx = []
             idx = 1
             if self.grid_mode:
-                current_closest_direction = np_random.randint(4)
+                current_closest_direction = np_random.integers(4)
             else:
                 current_closest_direction = direction_to_point(city_position, city_positions[closest_neighb_idx[idx]])
             connection_sides_idx.append(current_closest_direction)
@@ -896,12 +896,12 @@ class SparseRailGen(RailGen):
             city_cells.extend(self._get_cells_in_city(city_position, city_radius, city_orientations[-1], vector_field))
             # set the number of tracks within a city, at least 2 tracks per city
             connections_per_direction = np.zeros(4, dtype=int)
-            nr_of_connection_points = np_random.randint(2, rails_in_city + 1)
+            nr_of_connection_points = np_random.integers(2, rails_in_city + 1)
             for idx in connection_sides_idx:
                 connections_per_direction[idx] = nr_of_connection_points
             connection_points_coordinates_inner: List[List[IntVector2D]] = [[] for i in range(4)]
             connection_points_coordinates_outer: List[List[IntVector2D]] = [[] for i in range(4)]
-            number_of_out_rails = np_random.randint(1, min(rails_between_cities, nr_of_connection_points) + 1)
+            number_of_out_rails = np_random.integers(1, min(rails_between_cities, nr_of_connection_points) + 1)
             start_idx = int((nr_of_connection_points - number_of_out_rails) / 2)
             for direction in range(4):
                 connection_slots = np.arange(nr_of_connection_points) - start_idx

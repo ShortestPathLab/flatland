@@ -121,5 +121,8 @@ def test_schedule_from_file_complex():
     # Assert loaded agent number is correct
     assert complex_env_from_file.get_num_agents() == 10
 
-    # Assert max steps is correct
-    assert complex_env_from_file._max_episode_steps == 1350
+    # Assert max steps is correct.
+    # complex_schedule_generator uses 8 * (height + width) = 8 * (30 + 30) = 480.
+    # (1350 is what RandomSchedGen's 1.5 * height * width gives, and was copied from the
+    # random test above -- it never matched the complex generator's formula.)
+    assert complex_env_from_file._max_episode_steps == 480

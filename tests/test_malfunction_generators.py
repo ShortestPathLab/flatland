@@ -97,7 +97,11 @@ def test_single_malfunction_generator():
         action_dict = dict()
         tot_malfunctions = 0
         print(test)
-        for i in range(10):
+        # The generator only breaks an ACTIVE agent, and only once it has been called
+        # earlierst_malfunction (=10) times. Agents take a couple of steps to leave
+        # READY_TO_DEPART, so 10 steps is exactly on the boundary and can miss entirely;
+        # step further to give an agent time to activate and then reach the 10th call.
+        for i in range(20):
             for agent in env.agents:
                 # Go forward all the time
                 action_dict[agent.handle] = RailEnvActions(2)

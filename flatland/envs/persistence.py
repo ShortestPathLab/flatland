@@ -138,7 +138,7 @@ class RailEnvPersister(object):
                 load_data = file_in.read()
 
         if filename.endswith("mpk"):
-            env_dict = msgpack.unpackb(load_data, use_list=False, encoding="utf-8")
+            env_dict = msgpack.unpackb(load_data, use_list=False)
         elif filename.endswith("pkl"):
             env_dict = pickle.loads(load_data)
         else:
@@ -264,7 +264,7 @@ class RailEnvPersister(object):
         -------
         msg_data: msgpack object
         """
-        data = msgpack.unpackb(msg_data, use_list=False, encoding='utf-8')
+        data = msgpack.unpackb(msg_data, use_list=False)
         self.rail.grid = np.array(data["grid"])
         # agents are always reset as not moving
         if "agents_static" in data:
@@ -285,7 +285,7 @@ class RailEnvPersister(object):
         -------
         msg_data: msgpack object
         """
-        data = msgpack.unpackb(msg_data, use_list=False, encoding='utf-8')
+        data = msgpack.unpackb(msg_data, use_list=False)
         self.rail.grid = np.array(data["grid"])
         # agents are always reset as not moving
         if "agents_static" in data:

@@ -26,7 +26,10 @@ def test_build_railway_infrastructure():
     connection_002 = connect_rail_in_grid_map(grid_map, start_point, end_point, rail_trans, flip_start_node_trans=False,
                                               flip_end_node_trans=False, respect_transition_validity=True,
                                               forbidden_cells=None)
-    connection_002_expected = [(1, 3), (1, 4), (1, 5), (1, 6), (1, 7)]
+    # Reuses the rail laid by connection_001 along row 2 rather than cutting a fresh straight
+    # line: a_star prefers cells with a non-zero grid_map.reserve count, so connections merge
+    # onto existing track (the "shared rails" behaviour added in f6a3a83).
+    connection_002_expected = [(1, 3), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (2, 8), (1, 8), (1, 7)]
 
     # Make connection with open end at beginning and dead end on end
     start_point = (6, 2)
@@ -42,7 +45,9 @@ def test_build_railway_infrastructure():
     connection_004 = connect_rail_in_grid_map(grid_map, start_point, end_point, rail_trans, flip_start_node_trans=True,
                                               flip_end_node_trans=False, respect_transition_validity=True,
                                               forbidden_cells=None)
-    connection_004_expected = [(7, 5), (7, 6), (7, 7), (7, 8), (7, 9), (8, 9)]
+    # Likewise merges onto the column-8 rail from connection_001 before running down to (8, 9).
+    connection_004_expected = [(7, 5), (7, 6), (7, 7), (7, 8), (6, 8), (5, 8), (4, 8), (3, 8), (3, 9), (4, 9), (5, 9),
+                               (6, 9), (7, 9), (8, 9)]
 
     assert connection_001 == connection_001_expected, \
         "actual={}, expected={}".format(connection_001, connection_001_expected)
@@ -55,13 +60,13 @@ def test_build_railway_infrastructure():
 
     grid_map_grid_expected = [
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 1025, 1025, 1025, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 4, 1025, 1025, 1025, 1025, 1025, 4608, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0, 32800, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0, 32800, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0, 32800, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 1025, 1025, 256, 0, 0, 32800, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 4, 1025, 1025, 33825, 4608, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 4608, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 4, 1097, 1025, 1025, 1025, 1025, 6672, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 49186, 4608, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 32800, 32800, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 32800, 32800, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 1025, 1025, 256, 0, 0, 32800, 32800, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 4, 1025, 1025, 34864, 32800, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],

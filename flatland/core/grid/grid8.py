@@ -157,7 +157,9 @@ class Grid8Transitions(Transitions):
         if new_transition:
             cell_transition |= (1 << ((8 - 1 - orientation) * 8 + (8 - 1 - direction)))
         else:
-            cell_transition &= ~(1 << ((8 - 1 - orientation) * 8 + (8 - 1 - direction)))
+            # Mask the complement back into 64 bits: transitions are stored as uint64, and
+            # numpy >= 2 rejects the negative Python int that a bare ~ produces.
+            cell_transition &= ~(1 << ((8 - 1 - orientation) * 8 + (8 - 1 - direction))) & 0xFFFFFFFFFFFFFFFF
 
         return cell_transition
 

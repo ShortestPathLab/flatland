@@ -1,11 +1,13 @@
 import time
+from typing import Dict
 
 import numpy as np
 
 from flatland.envs.malfunction_generators import malfunction_from_params, MalfunctionParameters
 from flatland.envs.observations import TreeObsForRailEnv, GlobalObsForRailEnv
+from flatland.envs.persistence import RailEnvPersister
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
-from flatland.envs.rail_env import RailEnv
+from flatland.envs.rail_env import RailEnv, RailEnvActions
 from flatland.envs.rail_generators import sparse_rail_generator
 from flatland.envs.schedule_generators import sparse_schedule_generator
 from flatland.utils.rendertools import RenderTool, AgentRenderVariant
@@ -64,12 +66,12 @@ class RandomAgent:
         self.state_size = state_size
         self.action_size = action_size
 
-    def act(self, state):
+    def act(self, state) -> RailEnvActions:
         """
         :param state: input is the observation of the agent
         :return: returns an action
         """
-        return 2  # np.random.choice(np.arange(self.action_size))
+        return RailEnvActions.MOVE_FORWARD
 
     def step(self, memories):
         """
@@ -94,7 +96,7 @@ class RandomAgent:
 agent = RandomAgent(218, 4)
 
 # Empty dictionary for all agent action
-action_dict = dict()
+action_dict: Dict[int, RailEnvActions] = dict()
 
 print("Start episode...")
 # Reset environment and get initial observations for all agents
@@ -132,4 +134,4 @@ for step in range(500):
         break
 
 print('Episode: Steps {}\t Score = {}'.format(step, score))
-env.save_episode("saved_episode_2.mpk")
+RailEnvPersister.save_episode(env, "saved_episode_2.mpk")

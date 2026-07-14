@@ -1,5 +1,7 @@
-import numpy as np
 import os
+from typing import Dict
+
+import numpy as np
 
 # In Flatland you can use custom observation builders and predicitors
 # Observation builders generate the observation needed by the controller
@@ -116,13 +118,14 @@ class RandomAgent:
         self.state_size = state_size
         self.action_size = action_size
 
-    def act(self, state):
+    def act(self, state) -> RailEnvActions:
         """
         :param state: input is the observation of the agent
         :return: returns an action
         """
-        return np.random.choice([RailEnvActions.MOVE_FORWARD, RailEnvActions.MOVE_RIGHT, RailEnvActions.MOVE_LEFT,
-                                 RailEnvActions.STOP_MOVING])
+        # np.random.choice returns a numpy integer, so convert it back into a RailEnvActions member.
+        return RailEnvActions(np.random.choice([RailEnvActions.MOVE_FORWARD, RailEnvActions.MOVE_RIGHT,
+                                                RailEnvActions.MOVE_LEFT, RailEnvActions.STOP_MOVING]))
 
     def step(self, memories):
         """
@@ -143,7 +146,8 @@ class RandomAgent:
 
 
 # Initialize the agent with the parameters corresponding to the environment and observation_builder
-controller = RandomAgent(218, env.action_space[0])
+# The action space of the environment is the set of RailEnvActions members.
+controller = RandomAgent(218, len(RailEnvActions))
 
 # We start by looking at the information of each agent
 # We can see the task assigned to the agent by looking at
@@ -177,10 +181,10 @@ for agent_idx, agent in enumerate(env.agents):
             agents_with_same_start.add(agent_idx)
 
 # Lets try to enter with all of these agents at the same time
-action_dict = dict()
+action_dict: Dict[int, RailEnvActions] = dict()
 
 for agent_id in agents_with_same_start:
-    action_dict[agent_id] = 1  # Try to move with the agents
+    action_dict[agent_id] = RailEnvActions.MOVE_LEFT  # Try to move with the agents
 
 # Do a step in the environment to see what agents entered:
 env.step(action_dict)

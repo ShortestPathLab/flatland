@@ -1,8 +1,10 @@
 import random
-from typing import Any
+from typing import Any, List
 
 import numpy as np
+from numpy.random import Generator
 
+from flatland.core.grid.grid_utils import IntVector2D
 from flatland.core.grid.rail_env_grid import RailEnvTransitions
 from flatland.core.transition_map import GridTransitionMap
 from flatland.envs.rail_env import RailEnv
@@ -16,7 +18,11 @@ np.random.seed(100)
 
 
 def custom_rail_generator() -> RailGenerator:
-    def generator(width: int, height: int, num_agents: int = 0, num_resets: int = 0) -> RailGeneratorProduct:
+    # A RailGenerator is called by RailEnv.reset() as
+    #     rail_generator(width, height, num_agents, num_resets, np_random)
+    # and returns the rail map plus an optional dict of hints for the schedule generator.
+    def generator(width: int, height: int, num_agents: int, num_resets: int,
+                  np_random: Generator) -> RailGeneratorProduct:
         rail_trans = RailEnvTransitions()
         grid_map = GridTransitionMap(width=width, height=height, transitions=rail_trans)
         rail_array = grid_map.grid
@@ -31,14 +37,18 @@ def custom_rail_generator() -> RailGenerator:
 
 
 def custom_schedule_generator() -> ScheduleGenerator:
-    def generator(rail: GridTransitionMap, num_agents: int, hints: Any = None,
-                  num_resets: int = 0) -> Schedule:
-        agents_positions = []
-        agents_direction = []
-        agents_target = []
-        speeds = []
+    # A ScheduleGenerator is called by RailEnv.reset() as
+    #     schedule_generator(rail, num_agents, hints, num_resets, np_random)
+    # This minimal example schedules no agents at all, so all the agent lists stay empty.
+    def generator(rail: GridTransitionMap, num_agents: int, hints: Any, num_resets: int,
+                  np_random: Generator) -> Schedule:
+        agents_positions: List[IntVector2D] = []
+        agents_direction: List[int] = []
+        agents_target: List[IntVector2D] = []
+        speeds: List[float] = []
         return Schedule(agent_positions=agents_positions, agent_directions=agents_direction,
-                        agent_targets=agents_target, agent_speeds=speeds, agent_malfunction_rates=None)
+                        agent_targets=agents_target, agent_speeds=speeds, agent_malfunction_rates=None,
+                        max_episode_steps=0)
 
     return generator
 

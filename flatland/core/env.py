@@ -3,6 +3,7 @@ The env module defines the base Environment class.
 The base Environment class is adapted from rllib.env.MultiAgentEnv
 (https://github.com/ray-project/ray).
 """
+from typing import List
 
 
 class Environment:
@@ -44,8 +45,10 @@ class Environment:
     """
 
     def __init__(self):
-        self.action_space = ()
-        pass
+        # Dimensions of the action passed to step(). RailEnv sets [5] (its five RailEnvActions).
+        # Declared as a list, not the empty tuple it used to be: subclasses assign a list, so the
+        # base type made every `env.action_space[0]` provably out of bounds.
+        self.action_space: List[int] = []
 
     def reset(self):
         """

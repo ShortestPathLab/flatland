@@ -10,7 +10,7 @@ from flatland.core.env import Environment
 from flatland.core.env_observation_builder import ObservationBuilder
 from flatland.core.grid.grid_utils import coordinate_to_position
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
-from flatland.envs.rail_env import RailEnv
+from flatland.envs.rail_env import RailEnv, RailEnvActions
 from flatland.envs.rail_generators import complex_rail_generator
 from flatland.envs.schedule_generators import complex_schedule_generator
 from flatland.utils.misc import str2bool
@@ -21,12 +21,12 @@ random.seed(100)
 np.random.seed(100)
 
 
-class ObservePredictions(ObservationBuilder):
+class ObservePredictions(ObservationBuilder[np.ndarray, RailEnv]):
     """
     We use the provided ShortestPathPredictor to illustrate the usage of predictors in your custom observation.
     """
 
-    def __init__(self, predictor):
+    def __init__(self, predictor: ShortestPathPredictorForRailEnv):
         super().__init__()
         self.predictor = predictor
 
@@ -55,7 +55,7 @@ class ObservePredictions(ObservationBuilder):
             # We transform (x,y) coodrinates to a single integer number for simpler comparison
             self.predicted_pos.update({t: coordinate_to_position(self.env.width, pos_list)})
 
-        observations = super().get_many(handles)
+        observations = {handle: self.get(handle) for handle in handles}
 
         return observations
 
@@ -133,10 +133,10 @@ def main(args):
     # We render the initial step and show the obsered cells as colored boxes
     env_renderer.render_env(show=True, frames=True, show_observations=True, show_predictions=False)
 
-    action_dict = {}
+    action_dict: Dict[int, RailEnvActions] = {}
     for step in range(100):
         for a in range(env.get_num_agents()):
-            action = np.random.randint(0, 5)
+            action = RailEnvActions(int(np.random.randint(0, 5)))
             action_dict[a] = action
         obs, all_rewards, done, _ = env.step(action_dict)
         print("Rewards: ", all_rewards, "  [done=", done, "]")

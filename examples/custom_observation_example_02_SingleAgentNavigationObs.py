@@ -8,7 +8,7 @@ import numpy as np
 
 from flatland.core.env_observation_builder import ObservationBuilder
 from flatland.core.grid.grid4_utils import get_new_position
-from flatland.envs.rail_env import RailEnv
+from flatland.envs.rail_env import RailEnv, RailEnvActions
 from flatland.envs.rail_generators import complex_rail_generator
 from flatland.envs.schedule_generators import complex_schedule_generator
 from flatland.utils.misc import str2bool
@@ -18,7 +18,7 @@ random.seed(100)
 np.random.seed(100)
 
 
-class SingleAgentNavigationObs(ObservationBuilder):
+class SingleAgentNavigationObs(ObservationBuilder[List[int], RailEnv]):
     """
     We build a representation vector with 3 binary components, indicating which of the 3 available directions
     for each agent (Left, Forward, Right) lead to the shortest path to its target.
@@ -35,6 +35,7 @@ class SingleAgentNavigationObs(ObservationBuilder):
     def get(self, handle: int = 0) -> List[int]:
         agent = self.env.agents[handle]
 
+        assert self.env.rail is not None, "the env must be reset before observations can be built"
         if agent.position:
             possible_transitions = self.env.rail.get_transitions(*agent.position, agent.direction)
         else:
@@ -58,7 +59,7 @@ class SingleAgentNavigationObs(ObservationBuilder):
                     min_distances.append(np.inf)
 
             observation = [0, 0, 0]
-            observation[np.argmin(min_distances)] = 1
+            observation[int(np.argmin(min_distances))] = 1
 
         return observation
 
@@ -85,7 +86,8 @@ def main(args):
     env_renderer = RenderTool(env)
     env_renderer.render_env(show=True, frames=True, show_observations=True)
     for step in range(100):
-        action = np.argmax(obs[0]) + 1
+        # the observation is [left, forward, right]; the corresponding actions are 1, 2, 3
+        action = RailEnvActions(int(np.argmax(obs[0])) + 1)
         obs, all_rewards, done, _ = env.step({0: action})
         print("Rewards: ", all_rewards, "  [done=", done, "]")
         env_renderer.render_env(show=True, frames=True, show_observations=True)

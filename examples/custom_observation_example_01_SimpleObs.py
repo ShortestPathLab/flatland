@@ -3,14 +3,14 @@ import random
 import numpy as np
 
 from flatland.core.env_observation_builder import ObservationBuilder
-from flatland.envs.rail_env import RailEnv
+from flatland.envs.rail_env import RailEnv, RailEnvActions
 from flatland.envs.rail_generators import random_rail_generator
 
 random.seed(100)
 np.random.seed(100)
 
 
-class SimpleObs(ObservationBuilder):
+class SimpleObs(ObservationBuilder[np.ndarray, RailEnv]):
     """
     Simplest observation builder. The object returns observation vectors with 5 identical components,
     all equal to the ID of the respective agent.
@@ -33,7 +33,7 @@ def main():
     env.reset()
 
     # Print the observation vector for each agents
-    obs, all_rewards, done, _ = env.step({0: 0})
+    obs, all_rewards, done, _ = env.step({0: RailEnvActions.DO_NOTHING})
     for i in range(env.get_num_agents()):
         print("Agent ", i, "'s observation: ", obs[i])
 

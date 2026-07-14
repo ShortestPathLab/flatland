@@ -2,7 +2,7 @@ import numpy as np
 
 from flatland.envs.observations import TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
-from flatland.envs.rail_env import RailEnv
+from flatland.envs.rail_env import RailEnv, RailEnvActions
 from flatland.envs.rail_generators import complex_rail_generator
 from flatland.envs.schedule_generators import complex_schedule_generator
 from flatland.utils.rendertools import RenderTool
@@ -57,7 +57,8 @@ for episode in range(1, n_episodes + 1):
     for step in range(500):
         # Chose an action for each agent in the environment
         for a in range(env.get_num_agents()):
-            action = policy.act(obs[a])
+            # RailEnv.step expects RailEnvActions, not plain ints.
+            action = RailEnvActions(policy.act(obs[a]))
             action_dict.update({a: action})
         # Environment step which returns the observations for all agents, their corresponding
         # reward and whether they are done

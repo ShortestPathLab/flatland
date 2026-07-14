@@ -88,7 +88,7 @@ packages = ["flatland"]
 extend-exclude = ["docs", "notebooks"]
 
 [tool.ty.src]
-include = ["flatland"]
+include = ["flatland", "examples"]
 exclude = [
     "**/__pycache__",
     ".venv",

@@ -628,8 +628,16 @@ def evaluator(
             )
         )
         out.close()
-    if not mute:
-        input("Press enter to exit:")
+    # Hold the process open so the rendered view stays up until the user is done looking at it.
+    # Only meaningful with a human at a terminal: under CI, a pipe, or a redirected stdin there is
+    # nobody to press enter. isatty() covers the usual non-interactive cases, but a stdin can also
+    # claim to be a terminal and still be at EOF (redirecting from /dev/null under MSYS does
+    # exactly that), so swallow the EOFError too rather than dying on the last line of a long run.
+    if not mute and sys.stdin.isatty():
+        try:
+            input("Press enter to exit:")
+        except EOFError:
+            pass
 
 
 def remote_evaluator(get_path, args, replan=None):

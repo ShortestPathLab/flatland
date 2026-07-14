@@ -3,7 +3,7 @@ import random
 
 import numpy as np
 
-from flatland.envs.rail_env import RailEnv
+from flatland.envs.rail_env import RailEnv, RailEnvActions
 from flatland.envs.rail_generators import complex_rail_generator
 from flatland.envs.schedule_generators import complex_schedule_generator
 
@@ -31,7 +31,8 @@ def run_benchmark():
         for step in range(100):
             # Action
             for a in range(env.get_num_agents()):
-                action = np.random.randint(0, 4)
+                # RailEnv.step expects RailEnvActions, not plain ints.
+                action = RailEnvActions(np.random.randint(0, 4))
                 action_prob[action] += 1
                 action_dict.update({a: action})
 

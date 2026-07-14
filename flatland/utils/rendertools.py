@@ -759,7 +759,6 @@ class RenderLocal(RenderBase):
 
         if show:
             self.gl.show()
-        for i in range(3):
             self.gl.process_events()
 
         self.frame_nr += 1

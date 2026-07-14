@@ -57,6 +57,10 @@ class PILGL(GraphicsLayer):
 
         self.layers = []
         self.draws = []
+        # Layers (above the base) that have actually been drawn to since they
+        # were last cleared. Untouched layers are fully transparent, so
+        # alpha-compositing them is a no-op we can skip.
+        self.dirty_layers = set()
 
         self.tColBg = (255, 255, 255)  # white background
         self.tColRail = (0, 0, 0)  # black rails
@@ -124,6 +128,7 @@ class PILGL(GraphicsLayer):
         gPoints = list(gPoints.ravel())
         # the width here was self.linewidth - not really sure of the implications
         self.draws[layer].line(gPoints, fill=color, width=linewidth)
+        self.dirty_layers.add(layer)
 
     def scatter(self, gX, gY, color=None, marker="o", s=50, layer=RAIL_LAYER, opacity=255, *args, **kwargs):
         color = self.adapt_color(color)
@@ -131,27 +136,32 @@ class PILGL(GraphicsLayer):
         gPoints = np.stack([np.atleast_1d(gX), -np.atleast_1d(gY)]).T * self.nPixCell
         for x, y in gPoints:
             self.draws[layer].rectangle([(x - r, y - r), (x + r, y + r)], fill=color, outline=color)
+        self.dirty_layers.add(layer)
+
+    def scale_to_cell(self, pil_img):
+        """ Resize a sprite to the cell size.
+
+        Sprites that are pasted as-is are scaled once at load time (see
+        PILSVG.load_*). Sprites that are recolored at draw time must NOT be
+        pre-scaled: recolor_image() matches the base paint color exactly, and
+        resampling introduces blended edge pixels that the mask would miss.
+        """
+        if pil_img.size == (self.nPixCell, self.nPixCell):
+            return pil_img
+        return pil_img.resize((self.nPixCell, self.nPixCell))
 
     def draw_image_xy(self, pil_img, xyPixLeftTop, layer=RAIL_LAYER, ):
-
-        # Resize all PIL images just before drawing them
-        # to ensure that resizing doesnt affect the 
-        # recolorizing strategies in place
-        # 
-        # That said : All the code in this file needs 
-        # some serious refactoring -_- to ensure the 
-        # code style and structure is consitent.
-        #                               - Mohanty
-        pil_img = pil_img.resize(
-            (self.nPixCell, self.nPixCell)
-        )
+        # Sprites pre-scaled at load time short-circuit here; the rest (images
+        # composited or recolored per draw) are still resized on the way in.
+        pil_img = self.scale_to_cell(pil_img)
 
         if (pil_img.mode == "RGBA"):
             pil_mask = pil_img
         else:
             pil_mask = None
-        
+
         self.layers[layer].paste(pil_img, xyPixLeftTop, pil_mask)
+        self.dirty_layers.add(layer)
 
     def draw_image_row_col(self, pil_img, rcTopLeft, layer=RAIL_LAYER, ):
         xyPixLeftTop = tuple((array(rcTopLeft) * self.nPixCell)[[1, 0]])
@@ -166,6 +176,7 @@ class PILGL(GraphicsLayer):
     def text(self, xPx, yPx, strText, layer=RAIL_LAYER):
         xyPixLeftTop = (xPx, yPx)
         self.draws[layer].text(xyPixLeftTop, strText, font=self.font, fill=(0, 0, 0, 255))
+        self.dirty_layers.add(layer)
 
     def text_rowcol(self, rcTopLeft, strText, layer=AGENT_LAYER):
         xyPixLeftTop = tuple((array(rcTopLeft) * self.nPixCell)[[1, 0]])
@@ -194,9 +205,15 @@ class PILGL(GraphicsLayer):
 
     def alpha_composite_layers(self):
         img = self.layers[0]
-        for img2 in self.layers[1:]:
+        composited = False
+        for iLayer, img2 in enumerate(self.layers[1:], start=1):
+            if iLayer not in self.dirty_layers:
+                continue  # nothing drawn to it -> fully transparent
             img = Image.alpha_composite(img, img2)
-        return img
+            composited = True
+        # Always hand back an image the caller can safely keep or mutate,
+        # rather than aliasing the base layer.
+        return img if composited else img.copy()
 
     def get_image(self):
         """ return a blended / alpha composited image composed of all the layers,
@@ -224,6 +241,7 @@ class PILGL(GraphicsLayer):
         self.layers[iLayer] = img = self.create_image(opacity)
         # We also need to maintain a Draw object for each layer
         self.draws[iLayer] = ImageDraw.Draw(img)
+        self.dirty_layers.discard(iLayer)
 
     def create_layer(self, iLayer=0, clear=True):
         # If we don't have the layers already, create them
@@ -236,6 +254,7 @@ class PILGL(GraphicsLayer):
                 img = self.create_image(opacity)
                 self.layers.append(img)
                 self.draws.append(ImageDraw.Draw(img))
+                self.dirty_layers.discard(i)
         else:
             # We do already have this iLayer.  Clear it if requested.
             if clear:
@@ -268,8 +287,17 @@ class PILSVG(PILGL):
         self.load_rail()
         self.load_agent()
 
+        # Selection highlights, used by the editor. Previously re-read and
+        # PNG-decoded from disk on every frame they were drawn.
+        self.pil_selected_agent = self.scale_to_cell(
+            self.pil_from_png_file('flatland.png', "Selected_Agent.png"))
+        self.pil_selected_target = self.scale_to_cell(
+            self.pil_from_png_file('flatland.png', "Selected_Target.png"))
+
     def process_events(self):
-        time.sleep(0.001)
+        # No-op: PIL has no event loop. Backends with a real one (e.g. PGLGL)
+        # pump it in show().
+        pass
 
     def clear_rails(self):
         self.create_layers()
@@ -347,7 +375,9 @@ class PILSVG(PILGL):
 
         img_back_ground = self.pil_from_png_file('flatland.png', "Background_Light_green.png").convert("RGBA")
 
-        self.scenery_background_white = self.pil_from_png_file('flatland.png', "Background_white.png").convert("RGBA")
+        # Pasted as-is per frame (under agents on empty cells) -> scale once.
+        self.scenery_background_white = self.scale_to_cell(
+            self.pil_from_png_file('flatland.png', "Background_white.png").convert("RGBA"))
 
         self.scenery = []
         for file in scenery_files:
@@ -426,7 +456,9 @@ class PILSVG(PILGL):
         self.station_colors = self.recolor_image(station, [0, 0, 0], self.agent_colors, False)
 
         cell_occupied = self.pil_from_png_file('flatland.png', "Cell_occupied.png")
-        self.cell_occupied = self.recolor_image(cell_occupied, [0, 0, 0], self.agent_colors, False)
+        # Pasted as-is per frame -> scale once.
+        self.cell_occupied = [self.scale_to_cell(pil) for pil in
+                              self.recolor_image(cell_occupied, [0, 0, 0], self.agent_colors, False)]
 
         # Merge them with the regular rails.
         # https://stackoverflow.com/questions/38987/how-to-merge-two-dictionaries-in-a-single-expression
@@ -553,9 +585,9 @@ class PILSVG(PILGL):
 
         if target is not None:
             if is_selected:
-                svgBG = self.pil_from_png_file('flatland.png', "Selected_Target.png")
                 self.clear_layer(PILGL.SELECTED_TARGET_LAYER, 0)
-                self.draw_image_row_col(svgBG, (row, col), layer=PILGL.SELECTED_TARGET_LAYER)
+                self.draw_image_row_col(self.pil_selected_target, (row, col),
+                                        layer=PILGL.SELECTED_TARGET_LAYER)
 
     def recolor_image(self, pil, a3BaseColor, ltColors, invert=False):
         rgbaImg = array(pil)
@@ -605,10 +637,12 @@ class PILSVG(PILGL):
                 # PIL rotates anticlockwise for positive theta
                 pil_zug_2 = pil_zug.rotate(-rotation_degree)
 
-                # Save colored versions of each rotation / variant
+                # Save colored versions of each rotation / variant.
+                # Scaled here, once: these are pasted as-is on every frame, and
+                # they are the single hottest thing in the render loop.
                 pils = self.recolor_image(pil_zug_2, base_color, self.agent_colors)
                 for color_idx, pil_zug_3 in enumerate(pils):
-                    self.pil_zug[(in_direction_2, out_direction_2, color_idx)] = pils[color_idx]
+                    self.pil_zug[(in_direction_2, out_direction_2, color_idx)] = self.scale_to_cell(pils[color_idx])
 
     def set_agent_at(self, agent_idx, row, col, in_direction, out_direction, is_selected,
                      rail_grid=None, show_debug=False, clear_debug_text=True, malfunction=False):
@@ -624,9 +658,8 @@ class PILSVG(PILGL):
                 self.draw_image_row_col(self.scenery_background_white, (row, col), layer=PILGL.RAIL_LAYER)
 
         if is_selected:
-            bg_svg = self.pil_from_png_file('flatland.png', "Selected_Agent.png")
             self.clear_layer(PILGL.SELECTED_AGENT_LAYER, 0)
-            self.draw_image_row_col(bg_svg, (row, col), layer=PILGL.SELECTED_AGENT_LAYER)
+            self.draw_image_row_col(self.pil_selected_agent, (row, col), layer=PILGL.SELECTED_AGENT_LAYER)
         if show_debug:
             if not clear_debug_text:
                 dr = 0.2

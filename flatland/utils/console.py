@@ -19,6 +19,23 @@ from rich.text import Text
 # safe_box: fall back to ASCII borders on terminals that cannot draw box glyphs.
 _console = Console(highlight=False, safe_box=True)
 
+_quiet = False
+
+
+def set_quiet(quiet=True):
+    """Silence the panels and the live status display.
+
+    One switch rather than a flag threaded through every call site: `--quiet`
+    should mean "say nothing", and a caller adding a new notice should not have
+    to remember to honour it.
+    """
+    global _quiet
+    _quiet = quiet
+
+
+def is_quiet():
+    return _quiet
+
 
 def _glyph(char, fallback=""):
     """`char` if the terminal can actually encode it, else `fallback`.
@@ -36,6 +53,8 @@ def _glyph(char, fallback=""):
 
 
 def _panel(body, title, border_style):
+    if _quiet:
+        return
     _console.print()
     _console.print(
         Panel(
@@ -53,6 +72,8 @@ def _panel(body, title, border_style):
 
 def info(message):
     """A one-line status. Prefixed, not boxed - these are allowed to scroll by."""
+    if _quiet:
+        return
     _console.print(rf"[dim]\[flatland][/dim] {message}")
     _console.file.flush()
 
@@ -154,6 +175,8 @@ class RenderStatus:
 
     # -- lifecycle ----------------------------------------------------------
     def start(self):
+        if _quiet:
+            return
         # A redrawing panel needs a real terminal. Piped to a file or a CI log it
         # would emit one frame per refresh, so print it once and leave it.
         if not _console.is_terminal:

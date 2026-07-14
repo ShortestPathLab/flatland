@@ -53,7 +53,7 @@ The base install gives you everything needed to build, step and render an enviro
 
 | Extra | Adds | Needed for |
 | --- | --- | --- |
-| `evaluator` | crowdai-api, redis, pandas, timeout-decorator, msgpack-numpy | `flatland.evaluators` and the `flatland-evaluator` script, used to grade challenge submissions |
+| `evaluator` | crowdai-api, redis, pandas, timeout-decorator, msgpack-numpy | `flatland.evaluators` and `flatland evaluate`, used to grade challenge submissions |
 | `notebooks` | ipycanvas, ipython, ipywidgets | `flatland.utils.jupyter_utils` and `flatland.utils.editor`, the in-notebook helpers |
 | `aws` | boto3 | S3 upload support in the evaluation service |
 
@@ -87,7 +87,7 @@ $ uv sync
 Test that the installation works:
 
 ```console
-$ uv run flatland-demo
+$ uv run flatland demo
 ```
 
 You can also run the full test suite:

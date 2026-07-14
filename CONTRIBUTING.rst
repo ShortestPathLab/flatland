@@ -194,7 +194,7 @@ Evaluation Service
 
 .. code-block:: console
 
-    flatland-evaluator --tests /path/to/test-env-data/
+    flatland evaluate --tests /path/to/test-env-data/
 
 RemoteClient
 ~~~~~~~~~~~~

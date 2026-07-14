@@ -18,13 +18,13 @@ classifiers = [
 # step it and render it. See the extras below for the evaluation service.
 dependencies = [
     "attrs",
-    "click",
     "matplotlib",
     "msgpack",
     "nicegui",
     "numpy",
     "pillow",
     "rich",
+    "typer",
 ]
 
 [project.optional-dependencies]
@@ -56,8 +56,7 @@ notebooks = [
 aws = ["boto3"]
 
 [project.scripts]
-flatland-demo = "flatland.cli:demo"
-flatland-evaluator = "flatland.cli:evaluator"
+flatland = "flatland.cli:app"
 
 [project.urls]
 Homepage = "https://gitlab.aicrowd.com/flatland/flatland"

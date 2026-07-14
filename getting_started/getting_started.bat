@@ -4,10 +4,11 @@ set FLATLAND_BASEDIR=%~dp0\..
 
 cd %FLATLAND_BASEDIR%
 
-call conda install -y -c conda-forge tox-conda || goto :error
-call conda install -y tox || goto :error
-call tox -v  --recreate || goto :error
-call tox -v -e start_jupyter --recreate || goto :error
+REM uv reads .python-version, provisions the interpreter itself and builds the
+REM virtualenv from uv.lock. Install uv first: https://docs.astral.sh/uv/
+call uv sync --locked || goto :error
+call uv run pytest -v || goto :error
+call uv run jupyter notebook || goto :error
 
 goto :EOF
 

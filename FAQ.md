@@ -61,7 +61,7 @@ The environments vary in size and number of agents as well as malfunction parame
 ## Questions about the Flatland Repository:
 This section provides you with information about the most common questions around the Flatland repository. If your question is still not answered either reach out to the contacts listed on the repository directly or open an issue by following these [guidlines](http://flatland-rl-docs.s3-website.eu-central-1.amazonaws.com/06_contributing.html).
 ### How can I get started with Flatland?
-Install Flatland by running `pip install -U flatland-rl` or directly from source by cloning the flatland repository and running `python setup.py --install` in the repository directory.
+Install Flatland by running `pip install -U flatland-rl` or directly from source by cloning the flatland repository and running `uv sync` in the repository directory.
 
 These [Tutorials](http://flatland-rl-docs.s3-website.eu-central-1.amazonaws.com/03_tutorials.html) help you get a basic understanding of the flatland environment.
 ### How do I train agents on Flatland?

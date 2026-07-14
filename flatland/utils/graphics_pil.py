@@ -6,7 +6,7 @@ import time
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from numpy import array
-from pkg_resources import resource_string as resource_bytes
+from importlib.resources import files as resource_files
 
 from flatland.utils.graphics_layer import GraphicsLayer
 
@@ -283,7 +283,7 @@ class PILSVG(PILGL):
         self.agents_prev = []
 
     def pil_from_png_file(self, package, resource):
-        bytestring = resource_bytes(package, resource)
+        bytestring = resource_files(package).joinpath(resource).read_bytes()
         with io.BytesIO(bytestring) as fIn:
             pil_img = Image.open(fIn)
             pil_img.load()

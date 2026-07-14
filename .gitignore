@@ -79,8 +79,11 @@ target/
 # PyCharm
 .idea/
 
-# pyenv
-.python-version
+# uv: .python-version pins the interpreter and uv.lock pins the dependencies.
+# Both are checked in on purpose so everyone builds the same env.
+
+# uv build/download cache (see .gitlab-ci.yml)
+.uv-cache/
 
 # celery beat schedule file
 celerybeat-schedule

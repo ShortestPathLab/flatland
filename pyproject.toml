@@ -1,0 +1,85 @@
+[project]
+name = "flatland-rl"
+description = "Multi Agent Reinforcement Learning on Trains"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.14"
+dynamic = ["version"]
+keywords = ["flatland"]
+authors = [{ name = "S.P. Mohanty", email = "mohanty@aicrowd.com" }]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3.14",
+]
+
+dependencies = [
+    "attrs",
+    "click",
+    "crowdai-api",
+    "graphviz",
+    "gym",
+    "importlib-resources",
+    "ipycanvas",
+    "ipywidgets",
+    "matplotlib",
+    "msgpack",
+    "msgpack-numpy",
+    "networkx",
+    "numpy",
+    "pandas",
+    "pillow",
+    "pyglet",
+    "recordtype",
+    "redis",
+    "svgutils",
+    "timeout-decorator",
+]
+
+[project.optional-dependencies]
+aws = ["boto3"]
+
+[project.scripts]
+flatland-demo = "flatland.cli:demo"
+flatland-evaluator = "flatland.cli:evaluator"
+
+[project.urls]
+Homepage = "https://gitlab.aicrowd.com/flatland/flatland"
+
+[dependency-groups]
+dev = [
+    "benchmarker",
+    "bumpversion",
+    "coverage",
+    "flake8",
+    "flake8-eradicate",
+    "imageio",
+    "jupyter",
+    "notebook",
+    "pydeps",
+    "pytest",
+    "pyvirtualdisplay",
+    "twine",
+    "watchdog",
+    { include-group = "docs" },
+]
+docs = [
+    "docutils",
+    "numpydoc",
+    "sphinx",
+    "sphinx-rtd-theme",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "flatland/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["flatland"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

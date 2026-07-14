@@ -12,7 +12,7 @@ Flatland is a open-source toolkit for developing and comparing Multi Agent Reinf
 
 [The official documentation](http://flatland.aicrowd.com/) contains full details about the environment and problem statement
 
-Flatland is tested with Python 3.6 and 3.7 on modern versions of macOS, Linux and Windows. You may encounter problems with graphical rendering if you use WSL. Your [contribution is welcome](https://flatland.aicrowd.com/misc/contributing.html) if you can help with this!  
+Flatland is tested with Python 3.14 on modern versions of macOS, Linux and Windows. You may encounter problems with graphical rendering if you use WSL. Your [contribution is welcome](https://flatland.aicrowd.com/misc/contributing.html) if you can help with this!  
 
 🏆 Challenges
 ---
@@ -25,21 +25,24 @@ This library was developed specifically for the AIcrowd [Flatland challenges](ht
 📦 Setup
 ---
 
-### Prerequisites (optional)
+### Prerequisites
 
-Install [Anaconda](https://www.anaconda.com/distribution/) and create a new conda environment:
-
-```console
-$ conda create python=3.6 --name flatland-rl
-$ conda activate flatland-rl
-```
+Flatland is developed as a [uv](https://docs.astral.sh/uv/) project. Install uv by following the
+[official instructions](https://docs.astral.sh/uv/getting-started/installation/) — you do not need to install Python
+yourself, as uv reads `.python-version` and provisions the right interpreter (currently 3.14.6) for you.
 
 ### Stable release
 
-Install Flatland from pip:
+Install Flatland from PyPI:
 
 ```console
 $ pip install flatland-rl
+```
+
+Or add it to an existing uv project:
+
+```console
+$ uv add flatland-rl
 ```
 
 This is the preferred method to install Flatland, as it will always install the most recent stable release.
@@ -52,12 +55,14 @@ Clone the public repository:
 
 ```console
 $ git clone git@gitlab.aicrowd.com:flatland/flatland.git
+$ cd flatland
 ```
 
-Once you have a copy of the source, install it with:
+Once you have a copy of the source, create the virtual environment and install everything (including the development
+dependencies) from the lockfile:
 
 ```console
-$ python setup.py install
+$ uv sync
 ```
 
 ### Test installation
@@ -65,13 +70,13 @@ $ python setup.py install
 Test that the installation works:
 
 ```console
-$ flatland-demo
+$ uv run flatland-demo
 ```
 
 You can also run the full test suite:
 
 ```console
-python setup.py test
+$ uv run pytest
 ```
 
 👥 Credits

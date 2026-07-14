@@ -64,19 +64,17 @@ Ready to contribute? Here's how to set up `flatland` for local development.
 
     $ git clone git@gitlab.aicrowd.com:flatland/flatland.git
 
-3. Install the software dependencies via Anaconda-3 or Miniconda-3. (This assumes you have Anaconda installed by following the instructions `here <https://www.anaconda.com/distribution>`_)
+3. Install the software dependencies with `uv <https://docs.astral.sh/uv/>`_. (This assumes you have uv installed by
+   following the instructions `here <https://docs.astral.sh/uv/getting-started/installation/>`_. You do not need to
+   install Python yourself — uv reads ``.python-version`` and provisions the right interpreter for you.)
 
-    $ conda install -c conda-forge tox-conda
-    $ conda install tox
-    $ tox -v --recreate
+    $ uv sync
 
-    This will create a virtual env you can then use.
+    This creates a ``.venv`` virtual env from ``uv.lock``, with the project and all development dependencies installed.
 
     These steps are performed if you run
 
     $ getting_started/getting_started.bat/.sh
-
-    from Anaconda prompt.
 
 
 4. Create a branch for local development::
@@ -86,13 +84,13 @@ Ready to contribute? Here's how to set up `flatland` for local development.
    Now you can make your changes locally.
 
 5. When you're done making changes, check that your changes pass flake8 and the
-   tests, including testing other Python versions with tox::
+   tests::
 
-    $ flake8 flatland tests examples benchmarks
-    $ python setup.py test or py.test
-    $ tox
+    $ uv run flake8 flatland tests examples benchmarks
+    $ uv run pytest
 
-   To get flake8 and tox, just pip install them into your virtualenv.
+   Prefixing a command with ``uv run`` runs it inside the project virtual env, re-syncing it first if the lockfile
+   changed. Alternatively, activate ``.venv`` yourself and drop the prefix.
 
 6. Commit your changes and push your branch to Gitlab::
 
@@ -112,9 +110,9 @@ Before you submit a merge request, check that it meets these guidelines:
 3. If the merge request adds functionality, the docs should be updated. Put
    your new functionality into a function with a docstring, and add the
    feature to the list in README.rst.
-4. The merge request should work for Python 3.6, 3.7 and for PyPy. Check
+4. The merge request should work for Python 3.14. Check
    https://gitlab.aicrowd.com/flatland/flatland/pipelines
-   and make sure that the tests pass for all supported Python versions.
+   and make sure that the tests pass.
    We force pipelines to be run successfully for merge requests to be merged.
 5. Although we cannot enforce it technically, we ask for merge requests to be reviewed by at least one core member
    in order to ensure that the Technical Guidelines below are respected and that the code is well tested:

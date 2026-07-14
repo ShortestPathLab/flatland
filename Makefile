@@ -1,4 +1,4 @@
-.PHONY: clean clean-test clean-pyc clean-build docs help
+.PHONY: clean clean-test clean-pyc clean-build sync lint test coverage docs servedocs benchmarks examples notebooks release dist install help
 .DEFAULT_GOAL := help
 
 define BROWSER_PYSCRIPT
@@ -50,32 +50,40 @@ clean-test: ## remove test and coverage artifacts
 	rm -fr htmlcov/
 	rm -fr .pytest_cache
 
+sync: ## create/update the uv-managed virtualenv from uv.lock
+	uv sync
+
 lint: ## check style with flake8
-	flake8 flatland tests examples benchmarks
+	uv run flake8 flatland tests examples benchmarks
 
 test: ## run tests quickly with the default Python
 	echo "$$DISPLAY"
-	py.test
-
-test-all: ## run tests on every Python version with tox
-	tox
+	uv run pytest
 
 coverage: ## check code coverage quickly with the default Python
-	python make_coverage.py
+	uv run python make_coverage.py
 
 docs: ## generate Sphinx HTML documentation, including API docs
-	python make_docs.py
+	uv run python make_docs.py
 
 servedocs: docs ## compile the docs watching for changes
-	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
+	uv run watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
+
+benchmarks: ## run all benchmarks
+	uv run python benchmarks/benchmark_all_examples.py
+
+examples: ## run all examples
+	uv run python benchmarks/run_all_examples.py
+
+notebooks: ## run all notebooks
+	uv run python notebooks/run_all_notebooks.py
 
 release: dist ## package and upload a release
-	twine upload dist/*
+	uv publish
 
 dist: clean ## builds source and wheel package
-	python setup.py sdist
-	python setup.py bdist_wheel
+	uv build
 	ls -l dist
 
-install: clean ## install the package to the active Python's site-packages
-	python setup.py install
+install: clean ## install the package into the uv-managed virtualenv
+	uv sync

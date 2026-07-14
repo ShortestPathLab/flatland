@@ -1,4 +1,4 @@
-image: themattrix/tox
+image: ghcr.io/astral-sh/uv:python3.14-bookworm
 
 ##########################################
 ##########################################
@@ -15,49 +15,43 @@ stages:
     - profiling
     - benchmarks
     - deploy_docs
+
+variables:
+    # Keep uv's download/build cache inside the project so GitLab can cache it.
+    UV_CACHE_DIR: "$CI_PROJECT_DIR/.uv-cache"
+
 cache:
     paths:
-        - .tox
+        - .uv-cache
+
+.system_deps: &system_deps
+    - apt update
+    - apt install -y libgl1-mesa-glx xvfb graphviz libgraphviz-dev xdg-utils libcairo2-dev libjpeg-dev libgif-dev
 
 before_script:
-    - echo "Setting Up...."
+    - *system_deps
+    - uv sync --locked
 
 tests:
     stage: tests
-    before_script:
-        - apt update
-        - apt install -y libgl1-mesa-glx xvfb graphviz libgraphviz-dev xdg-utils libcairo2-dev libjpeg-dev libgif-dev python-pyglet
-        - wget -nv https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/Miniconda3-latest-Linux-x86_64.sh
-        - bash /tmp/Miniconda3-latest-Linux-x86_64.sh -b -p /tmp/miniconda3
-        - export PATH=/tmp/miniconda3/bin:$PATH
-        - pip install tox awscli
-        - conda update -n root conda -y
-        - conda install -c conda-forge tox-conda
     script:
-        - xvfb-run tox -v --recreate
+        - xvfb-run uv run pytest -v
+        - xvfb-run uv run flake8 flatland tests examples benchmarks
+        - xvfb-run uv run python benchmarks/run_all_examples.py
+        - xvfb-run uv run python notebooks/run_all_notebooks.py
 
 build_and_deploy_docs:
-    image: "python:latest"
     stage: deploy_docs
     only:
         - master
     dependencies:
         - tests
-    before_script:
-        - apt update
-        - apt install -y libgl1-mesa-glx xvfb xdg-utils libcairo2-dev libjpeg-dev libgif-dev graphviz libgraphviz-dev python-pyglet
-        - wget -nv https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/Miniconda3-latest-Linux-x86_64.sh
-        - bash /tmp/Miniconda3-latest-Linux-x86_64.sh -b -p /tmp/miniconda3
-        - export PATH=/tmp/miniconda3/bin:$PATH
-        - pip install tox awscli
-        - conda update -n root conda -y
-        - conda install -c conda-forge tox-conda
     script:
         - echo "Bucket=${BUCKET_NAME}"
         - echo "AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}"
         - echo "CI_COMMIT_REF_SLUG=${CI_COMMIT_REF_SLUG}"
-        - xvfb-run tox -v -e docs --recreate
-        - aws s3 cp ./docs/_build/html/ s3://${BUCKET_NAME} --recursive
+        - xvfb-run uv run python make_docs.py
+        - uv run --with awscli aws s3 cp ./docs/_build/html/ s3://${BUCKET_NAME} --recursive
     environment:
         name: ${CI_COMMIT_REF_SLUG}
         url: http://${BUCKET_NAME}.s3-website.${AWS_DEFAULT_REGION}.amazonaws.com/
@@ -69,17 +63,8 @@ profiling:
     only:
         variables:
             - $BENCHMARKS_AND_PROFILING
-    before_script:
-        - apt update
-        - apt install -y libgl1-mesa-glx xvfb xdg-utils libcairo2-dev libjpeg-dev libgif-dev graphviz libgraphviz-dev python-pyglet
-        - wget -nv https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/Miniconda3-latest-Linux-x86_64.sh
-        - bash /tmp/Miniconda3-latest-Linux-x86_64.sh -b -p /tmp/miniconda3
-        - export PATH=/tmp/miniconda3/bin:$PATH
-        - pip install tox awscli
-        - conda update -n root conda -y
-        - conda install -c conda-forge tox-conda
     script:
-        - xvfb-run tox -e profiling -v --recreate
+        - xvfb-run uv run python benchmarks/profile_all_examples.py
 
 benchmarks:
     dependencies:
@@ -88,28 +73,12 @@ benchmarks:
     only:
         variables:
             - $BENCHMARKS_AND_PROFILING
-    before_script:
-        - apt update
-        - apt install -y libgl1-mesa-glx xvfb xdg-utils libcairo2-dev libjpeg-dev libgif-dev graphviz libgraphviz-dev python-pyglet
-        - wget -nv https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/Miniconda3-latest-Linux-x86_64.sh
-        - bash /tmp/Miniconda3-latest-Linux-x86_64.sh -b -p /tmp/miniconda3
-        - export PATH=/tmp/miniconda3/bin:$PATH
-        - pip install tox awscli
-        - conda update -n root conda -y
-        - conda install -c conda-forge tox-conda
     script:
-        - xvfb-run tox -e benchmarks -v --recreate
+        - xvfb-run uv run python benchmarks/benchmark_all_examples.py
 
-test_conda_setup:
+test_uv_setup:
     stage: integration_testing
     before_script:
-        - apt update
-        - apt install -y libgl1-mesa-glx xvfb xdg-utils libcairo2-dev libjpeg-dev libgif-dev graphviz libgraphviz-dev python-pyglet
-        - wget -nv https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/Miniconda3-latest-Linux-x86_64.sh
-        - bash /tmp/Miniconda3-latest-Linux-x86_64.sh -b -p /tmp/miniconda3
-        - export PATH=/tmp/miniconda3/bin:$PATH
-        - conda update -n root conda -y
+        - *system_deps
     script:
         - xvfb-run bash getting_started/getting_started.sh
-
-

@@ -5,7 +5,6 @@ from enum import IntEnum
 
 import numpy as np
 from numpy import array
-from recordtype import recordtype
 
 from flatland.envs.agent_utils import RailAgentStatus
 
@@ -166,8 +165,6 @@ class RenderLocal(RenderBase):
         The lower / rail layer 0 is only redrawn after set_new_rail() has been called.
         Created with a "GraphicsLayer" or gl - one of WEB, PILSVG or PIL
     """
-    visit = recordtype("visit", ["rc", "iDir", "iDepth", "prev"])
-
     color_list = list("brgcmyk")
     # \delta RC for NESW
     transitions_row_col = np.array([[-1, 0], [0, 1], [1, 0], [0, -1]])

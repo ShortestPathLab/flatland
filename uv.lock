@@ -698,7 +698,6 @@ dependencies = [
     { name = "nicegui" },
     { name = "numpy" },
     { name = "pillow" },
-    { name = "recordtype" },
     { name = "rich" },
 ]
 
@@ -770,7 +769,6 @@ requires-dist = [
     { name = "pandas", marker = "extra == 'evaluator'" },
     { name = "pillow" },
     { name = "pywebview", marker = "extra == 'native'" },
-    { name = "recordtype" },
     { name = "redis", marker = "extra == 'evaluator'" },
     { name = "rich" },
     { name = "timeout-decorator", marker = "extra == 'evaluator'" },
@@ -2706,18 +2704,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/02/51/d3a6ea424652c60f05600d8c2e01a55c913755e7cdad64afabbd1aa16f44/readme_renderer-45.0.tar.gz", hash = "sha256:030a8fac74904f8fba11ad1bb6964e3f76e896dc7e5e71f16af190c9056696d1", size = 36172, upload-time = "2026-06-09T21:05:17.37Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/97/1b/295bf2fa3e740131778065e5ffa2c481f0e7210182d408e9a2c244ff5b0c/readme_renderer-45.0-py3-none-any.whl", hash = "sha256:3385ed220117104a2bceb4a9dac8c5fdf6d1f96890d7ea2a9c7174fd5c84091f", size = 14134, upload-time = "2026-06-09T21:05:15.85Z" },
-]
-
-[[package]]
-name = "recordtype"
-version = "1.4"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "six" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/40/90/c9f47e7a730ef1da4ee84b13e80507a068af06d6a5d99d3b6ff2964fc2ad/recordtype-1.4.tar.gz", hash = "sha256:aacfe215498146b2158ec680b2768843235cc518ba914e663a1f0d38d6e126b8", size = 13696, upload-time = "2022-09-22T18:07:58.828Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/38/09/856fedfb18211da52fa967a0a42ddfe9516a369fcf72602527aac1afdcf4/recordtype-1.4-py2.py3-none-any.whl", hash = "sha256:44423e34241f29f0760ba3da15c1c43ef81128939765a1461212c4886a1880c8", size = 13835, upload-time = "2022-09-22T18:07:57.123Z" },
 ]
 
 [[package]]

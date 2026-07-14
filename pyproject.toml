@@ -24,7 +24,6 @@ dependencies = [
     "nicegui",
     "numpy",
     "pillow",
-    "recordtype",
     "rich",
 ]
 

@@ -80,16 +80,30 @@ class _Server:
     def _serve(self):
         from nicegui import app, ui
 
-        def view(renderer, label=None):
+        def fit_page():
+            """Let the frame use the whole viewport.
+
+            NiceGUI wraps page content in `.nicegui-content`, which ships with
+            padding and a flex gap. Against a frame already sized to the full
+            viewport height that padding is what pushes the page over the edge
+            and raises scrollbars, so strip it.
+            """
+            ui.query("body").style("margin:0; padding:0; overflow:hidden;"
+                                   " background:#f8f8f8;")
+            ui.query(".nicegui-content").classes("p-0 m-0 gap-0").style(
+                "height:100dvh; width:100vw; align-items:center; justify-content:center;")
+
+        def view(renderer, label=None, fit=True):
             if label:
                 ui.label(label).classes("text-sm font-mono opacity-60")
             img = ui.interactive_image()
-            # Fit the frame inside the window, preserving aspect, and never
-            # scale it beyond its natural size: upscaling a raster frame is what
-            # makes the art look soft. Render at a higher cell_size / screen
-            # size instead if you want more detail.
-            img.style("max-width:100%; max-height:100vh; width:auto; height:auto;"
-                      " object-fit:contain; margin:0 auto;")
+            # Fit inside the viewport, preserve aspect, and never scale beyond
+            # natural size: upscaling a raster frame is what makes the art look
+            # soft. Render at a higher cell_size / screen size for more detail.
+            # 100dvh, not 100vh: on mobile the browser chrome makes vh taller
+            # than what is actually visible, which would reintroduce the scroll.
+            cap = "max-height:100dvh; max-width:100vw;" if fit else "max-width:100%;"
+            img.style(cap + " width:auto; height:auto; object-fit:contain; margin:0 auto;")
             img.props('fit=scale-down')
             seen = {"v": -1}
 
@@ -112,8 +126,14 @@ class _Server:
             if not _renderers:
                 ui.label("No flatland environment is rendering yet.")
                 return
+            if len(_renderers) == 1:
+                fit_page()
+                view(next(iter(_renderers.values())))
+                return
+            # Several envs stacked: they cannot all fit, so let the page scroll
+            # normally rather than squeezing each one into a sliver.
             for key in sorted(_renderers):
-                view(_renderers[key], label=None if len(_renderers) == 1 else f"env {key}")
+                view(_renderers[key], label=f"env {key}", fit=False)
 
         @ui.page("/env/{idx}")
         def single(idx: int):
@@ -121,6 +141,7 @@ class _Server:
             if renderer is None:
                 ui.label(f"No environment {idx}.")
                 return
+            fit_page()
             view(renderer)
 
         app.on_startup(self.started.set)

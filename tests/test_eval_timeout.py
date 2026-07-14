@@ -160,4 +160,6 @@ def __disabled__test_random_timeouts():
     print(remote_client.submit())
 
 if __name__ == "__main__":
-    test_random_timeouts()
+    # The test itself is disabled by the __disabled__ prefix (it needs a running evaluator),
+    # but it can still be driven by hand from the command line.
+    __disabled__test_random_timeouts()

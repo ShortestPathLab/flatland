@@ -168,7 +168,7 @@ class MotionCheck(object):
 
         # This should never happen - only the next cell of an agent has no successor
         if len(dSucc)==0:
-            print(f"error condition - agent {iAg} node {rcPos} has no successor")
+            print(f"error condition - agent {iAgent} node {rcPos} has no successor")
             return (False, rcPos)
 
         # This agent has a successor

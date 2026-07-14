@@ -84,7 +84,6 @@ def test_malfunction_process():
                   )
     obs, info = env.reset(False, False, True, random_seed=10)
 
-    agent_halts = 0
     total_down_time = 0
     agent_old_position = env.agents[0].position
 
@@ -481,6 +480,7 @@ def tests_random_interference_from_outside():
     env.reset()
     env.agents[0].speed_data['speed'] = 0.33
     env.reset(False, False, False, random_seed=10)
+
     env_data = []
 
     for step in range(200):
@@ -542,7 +542,6 @@ def test_last_malfunction_step():
     # Force malfunction to be off at beginning and next malfunction to happen in 2 steps
     env.agents[0].malfunction_data['next_malfunction'] = 2
     env.agents[0].malfunction_data['malfunction'] = 0
-    env_data = []
     for step in range(20):
         action_dict: Dict[int, RailEnvActions] = {}
         for agent in env.agents:

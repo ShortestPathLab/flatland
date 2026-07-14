@@ -325,7 +325,6 @@ def test_rail_env_reset():
     #env.save(file_name)
     RailEnvPersister.save(env, file_name)
 
-    dist_map_shape = np.shape(env.distance_map.get())
     rails_initial = env.rail.grid
     agents_initial = env.agents
 

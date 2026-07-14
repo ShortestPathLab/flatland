@@ -1389,6 +1389,9 @@ def test_rail_env_action_required_info():
     env_always_action.reset(False, False, True, random_seed=5)
     env_only_if_action_required.reset(False, False, True, random_seed=5)
     assert env_only_if_action_required.rail.grid.tolist() == env_always_action.rail.grid.tolist()
+    # Only read from step 1 onwards (the `step == 0 or ...` below short-circuits on the first
+    # pass); bind it up front so it is not a bare undefined name.
+    info_only_if_action_required = None
     for step in range(50):
         print("step {}".format(step))
 

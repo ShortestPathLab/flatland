@@ -1,5 +1,6 @@
 import numpy as np
 
+from flatland.envs.malfunction_generators import MalfunctionParameters, malfunction_from_params
 from flatland.envs.observations import GlobalObsForRailEnv, TreeObsForRailEnv
 from flatland.envs.predictions import ShortestPathPredictorForRailEnv
 from flatland.envs.rail_env import RailEnv
@@ -23,8 +24,6 @@ def test_random_seeding():
             actions = {}
             actions[0] = 2
             env.step(actions)
-        agent_positions = []
-
         env.agents[0].initial_position == (3, 2)
         env.agents[1].initial_position == (3, 5)
         env.agents[2].initial_position == (3, 6)
@@ -99,20 +98,23 @@ def test_seeding_and_malfunction():
     # Test if two different instances diverge with different observations
     rail, rail_map = make_simple_rail2()
 
-    stochastic_data = {'prop_malfunction': 0.4,
-                       'malfunction_rate': 2,
-                       'min_duration': 10,
-                       'max_duration': 10}
+    # This was previously a bare dict that was never passed to either env, so no malfunctions
+    # were ever generated and the malfunction half of this test did nothing. Wired up via the
+    # current MalfunctionParameters API; rate 1/2 is the modern spelling of the old {'malfunction_rate': 2}.
+    stochastic_data = MalfunctionParameters(malfunction_rate=1 / 2, min_duration=10, max_duration=10)
+
     # Make two seperate envs with different and see if the exhibit the same malfunctions
     # Global Observation
     for tests in range(1, 100):
         env = RailEnv(width=25, height=30, rail_generator=rail_from_grid_transition_map(rail),
                       schedule_generator=random_schedule_generator(), number_of_agents=10,
+                      malfunction_generator_and_process_data=malfunction_from_params(stochastic_data),
                       obs_builder_object=GlobalObsForRailEnv())
 
         # Tree Observation
         env2 = RailEnv(width=25, height=30, rail_generator=rail_from_grid_transition_map(rail),
                        schedule_generator=random_schedule_generator(), number_of_agents=10,
+                       malfunction_generator_and_process_data=malfunction_from_params(stochastic_data),
                        obs_builder_object=GlobalObsForRailEnv())
 
         env.reset(True, False, True, random_seed=tests)

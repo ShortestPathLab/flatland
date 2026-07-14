@@ -68,7 +68,6 @@ def a_star(grid_map: GridTransitionMap, start: IntVector2D, end: IntVector2D,
     end_node = AStarNode(end, None)
     start_node.h = a_star_distance_function(start_node.pos, end_node.pos)
     start_f = start_node.g + start_node.h
-    start_h = start_node.h
 
     start_node.f = start_node.g + start_node.h
 

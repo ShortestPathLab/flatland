@@ -227,7 +227,7 @@ def test_rail_env_has_deadend():
         expected_has_deadend = t in deadends
         actual_had_deadend = ret.has_deadend(t)
         assert actual_had_deadend == expected_has_deadend, \
-            "{} should be deadend = {}, actual = {}".format(t, )
+            "{} should be deadend = {}, actual = {}".format(t, expected_has_deadend, actual_had_deadend)
 
 
 def test_rail_env_remove_deadend():
@@ -240,7 +240,7 @@ def test_rail_env_remove_deadend():
         expected_has_deadend = 0
         actual_had_deadend = ret.remove_deadends(t)
         assert actual_had_deadend == expected_has_deadend, \
-            "{} should be deadend = {}, actual = {}".format(t, )
+            "{} should be deadend = {}, actual = {}".format(t, expected_has_deadend, actual_had_deadend)
 
     assert ret.remove_deadends(int(rw('0010 0001 1000 0100'), 2)) == 0
     assert ret.remove_deadends(int(rw('0010 0001 1000 0110'), 2)) == int(rw('0000 0000 0000 0010'), 2)

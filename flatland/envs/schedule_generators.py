@@ -132,7 +132,6 @@ class SparseSchedGen(BaseSchedGen):
         city_positions = hints['city_positions']
         city_orientation = hints['city_orientations']
         max_num_agents = hints['num_agents']
-        city_orientations = hints['city_orientations']
         if num_agents > max_num_agents:
             num_agents = max_num_agents
             warnings.warn("Too many agents! Changes number of agents.")

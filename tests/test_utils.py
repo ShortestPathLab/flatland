@@ -109,12 +109,12 @@ def run_replay_config(env: RailEnv, test_configs: List[ReplayConfig], rendering:
 
             if replay.action is not None:
                 assert info_dict['action_required'][
-                           a] == True or agent.status == RailAgentStatus.READY_TO_DEPART, "[{}] agent {} expecting action_required={} or agent status READY_TO_DEPART".format(
+                           a] or agent.status == RailAgentStatus.READY_TO_DEPART, "[{}] agent {} expecting action_required={} or agent status READY_TO_DEPART".format(
                     step, a, True)
                 action_dict[a] = replay.action
             else:
-                assert info_dict['action_required'][
-                           a] == False, "[{}] agent {} expecting action_required={}, but found {}".format(
+                assert not info_dict['action_required'][
+                    a], "[{}] agent {} expecting action_required={}, but found {}".format(
                     step, a, False, info_dict['action_required'][a])
 
             if replay.set_malfunction is not None:

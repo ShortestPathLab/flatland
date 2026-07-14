@@ -10,12 +10,6 @@ from flatland.envs.schedule_generators import sparse_schedule_generator
 def test_get_global_observation():
     number_of_agents = 20
 
-    stochastic_data = {'prop_malfunction': 1.,  # Percentage of defective agents
-                       'malfunction_rate': 30,  # Rate of malfunction occurence
-                       'min_duration': 3,  # Minimal duration of malfunction
-                       'max_duration': 20  # Max duration of malfunction
-                       }
-
     speed_ration_map = {1.: 0.25,  # Fast passenger train
                         1. / 2.: 0.25,  # Fast freight train
                         1. / 3.: 0.25,  # Slow commuter train

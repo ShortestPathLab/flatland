@@ -97,9 +97,10 @@ def test_fix_inner_nodes():
     parallel_target_1 = (6, 4)
 
     inner_nodes = [start, target, parallel_start, parallel_target, parallel_start_1, parallel_target_1]
-    track_0 = connect_straight_line_in_grid_map(grid_map, start, target, rail_trans)
-    track_1 = connect_straight_line_in_grid_map(grid_map, parallel_start, parallel_target, rail_trans)
-    track_2 = connect_straight_line_in_grid_map(grid_map, parallel_start_1, parallel_target_1, rail_trans)
+    # called for their side effect on grid_map; the returned paths are not needed here
+    connect_straight_line_in_grid_map(grid_map, start, target, rail_trans)
+    connect_straight_line_in_grid_map(grid_map, parallel_start, parallel_target, rail_trans)
+    connect_straight_line_in_grid_map(grid_map, parallel_start_1, parallel_target_1, rail_trans)
 
     # Fix the ends of the inner node
     # This is not a fix in transition type but rather makes the necessary connections to the parallel tracks

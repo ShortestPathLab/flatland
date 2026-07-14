@@ -1,6 +1,8 @@
 """
 This is the python script week 1 tutorial exercise.
 """
+import glob
+import os
 
 
 #########################
@@ -27,9 +29,6 @@ print("Train 2: Start  (1, 5)  Goal  (6, 1)")
 
 def get_path(agents, rail, max_ep_steps):
     return [train_1, train_2]
-
-import glob
-import os
 
 #import necessary modules that this python scripts need.
 try:

@@ -174,7 +174,7 @@ def check_conflict(time_step, path_all, local_env: RailEnv, debug=False):
     failed_agents = []
     for agent_id in range(0, len(local_env.agents)):
         if (
-            local_env.agents[agent_id].position != None
+            local_env.agents[agent_id].position is not None
             and len(path_all[agent_id]) > time_step
             and local_env.agents[agent_id].position != path_all[agent_id][time_step]
         ):
@@ -444,7 +444,6 @@ def evaluator(
                     path_all = new_paths
 
             num_done = 0
-            new_cost = 0
             num_deadlines_met = 0
             for agent_id in range(0, len(local_env.agents)):
                 if local_env.agents[agent_id].status in [2, 3]:

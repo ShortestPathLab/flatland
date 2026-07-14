@@ -151,6 +151,8 @@ def main(args):
 
 if __name__ == '__main__':
     if 'argv' in globals():
-        main(argv)
+        # 'argv' is injected as a global by benchmarks/run_all_examples.py via
+        # runpy.run_path(..., init_globals=...), so it is not a name in this module.
+        main(globals()['argv'])
     else:
         main(sys.argv[1:])

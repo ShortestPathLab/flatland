@@ -86,10 +86,10 @@ $ uv run pytest
 📖 Documentation
 ---
 
-The [tutorials](docs/tutorials/) are the best starting point: they cover building an environment, writing a custom
-observation builder and predictor, and the stochastic and multi-speed features. The [FAQ](FAQ.md) covers the
-environment, the agent attributes and malfunctions, and [docs/specifications/](docs/specifications/) describes the
-railway model, the rendering and the visualisation in more depth.
+The [tutorials](docs/tutorials/) are the best starting point. They cover building an environment, writing a custom
+observation builder and predictor, and the stochastic and multi-speed features. For reference, the [FAQ](FAQ.md)
+answers questions about the environment, agent attributes and malfunctions, while
+[docs/specifications/](docs/specifications/) goes deeper on the railway model and the rendering.
 
 The docs are plain Markdown and reStructuredText, read directly from this repository — there is no separate site to
 build.

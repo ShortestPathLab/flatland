@@ -2,15 +2,16 @@
 ========
 
 This guide takes you from a fresh computer to a Flatland simulation running in a window on your
-screen. It assumes **no prior experience** with terminals, Git or Python environments — if you have
-used them before, skip ahead; nothing here is out of order.
+screen. It assumes **no prior experience** with terminals, Git or Python environments. If you have
+used them before, skip ahead.
 
-> **Doing the assignment?** This guide sets up Flatland *on its own* — the library, and a demo you can
+> **Doing the assignment?** This guide sets up Flatland *on its own*: the library, plus a demo you can
 > watch run. It is not the assignment setup. For that, follow the README in the assignment template,
 > [ShortestPathLab/fit5222-a1-template](https://github.com/ShortestPathLab/fit5222-a1-template),
-> which brings Flatland in as a dependency. The steps below are still the right place to start if you
-> want Flatland by itself, or if you hit a setup problem the template's README does not cover — the
-> [Troubleshooting](#troubleshooting) section applies to both.
+> which brings Flatland in as a dependency. If you have already worked through the template's setup,
+> you have Git and uv installed and can skip Steps 0–2 here. The steps below are still the right place
+> to start if you want Flatland by itself, or if you hit a setup problem the template's README does
+> not cover — the [Troubleshooting](#troubleshooting) section applies to both.
 
 Work through the steps in sequence. The whole thing takes about 15 minutes, most of which is waiting
 for downloads.
@@ -24,8 +25,7 @@ for downloads.
 - [Troubleshooting](#troubleshooting)
 
 Flatland is tested with Python 3.14 on modern versions of Windows, macOS and Linux, and inside WSL
-(Windows Subsystem for Linux). Pick whichever of those you already have — all four are fully
-supported, and the assignment is the same on each.
+(Windows Subsystem for Linux). Pick whichever you already have. The assignment is the same on each.
 
 ---
 
@@ -51,7 +51,7 @@ That is PowerShell, and it is what the Windows commands in this guide assume.
 ### WSL on Windows
 
 WSL runs a real Ubuntu Linux system inside Windows. It is a good choice if your unit or your own
-projects expect Linux tools, and Flatland fully supports it — including the graphical window.
+projects expect Linux tools, and Flatland supports it, graphical window included.
 
 If you do not have WSL yet, open **Terminal as Administrator** (press <kbd>Win</kbd>, type
 `terminal`, then right-click it and choose **Run as administrator**) and run:
@@ -61,8 +61,8 @@ If you do not have WSL yet, open **Terminal as Administrator** (press <kbd>Win</
 ```
 
 Restart your computer when it asks. On the next boot an Ubuntu window opens and asks you to invent a
-username and password — the password is for Ubuntu, you will not see the characters as you type, and
-that is normal.
+username and password. The password is for Ubuntu, and you will not see the characters as you type.
+That is normal.
 
 From then on, open WSL by pressing <kbd>Win</kbd>, typing `ubuntu`, and pressing <kbd>Enter</kbd>.
 Your prompt ends in `$`:
@@ -125,7 +125,7 @@ Notes:
 - **Windows**: if `winget` is not recognised, download the installer from
   [git-scm.com](https://git-scm.com/download/win) and accept every default.
 - **WSL/Linux**: `sudo` means "run as administrator". It will ask for the password you invented in
-  Step 0. Nothing appears on screen as you type it — that is deliberate, just type and press
+  Step 0. Nothing appears on screen as you type it. That is deliberate; just type and press
   <kbd>Enter</kbd>.
 - **macOS**: this installs Apple's Command Line Tools, which include Git. A dialog box will pop up;
   click **Install** and wait.
@@ -147,9 +147,9 @@ Step 2: Install uv
 ---
 
 **uv** manages Python for you. You do **not** need to install Python yourself, and you should not try
-to — uv reads Flatland's `.python-version` file, downloads exactly the interpreter Flatland needs
-(currently 3.14.6), and keeps it separate from anything else on your machine. This is what stops the
-classic "it works on my laptop but not the tutor's" problem.
+to. uv reads Flatland's `.python-version` file, downloads the interpreter Flatland needs
+(currently 3.14.6), and keeps it separate from anything else on your machine. That is what keeps
+your setup from drifting away from the tutor's.
 
 Run the installer for your platform:
 
@@ -204,8 +204,8 @@ close your terminal and come back later, you will need to `cd` back here first.
 Step 4: Run it
 ---
 
-There is no install step. Run the built-in demo — a small grid where five trains move at random —
-and everything installs itself on the way:
+There is no separate install step. Run the built-in demo, a small grid where five trains move at
+random, and everything installs itself on the way:
 
 ```console
 $ uv run flatland demo
@@ -213,9 +213,9 @@ $ uv run flatland demo
 
 **The first run will sit there for a few minutes.** Before running anything, `uv run` reads
 Flatland's `.python-version` and `uv.lock`, downloads the exact Python and the exact dependencies
-they name, and puts them in a hidden `.venv` folder inside the project — a **virtual environment**, a
-private Python installation used by this project alone. That is the wait. Later runs reuse it and
-start in seconds.
+they name, and puts them in a hidden `.venv` folder inside the project. That folder is a **virtual
+environment**: a private Python installation used by this project alone. Building it is the wait.
+Later runs reuse it and start in seconds.
 
 You never have to "activate" that environment: `uv run` does it for you, every time. This is how you
 run *everything* in this project. Use `uv run python my_script.py`, not `python my_script.py`.
@@ -230,7 +230,7 @@ Flatland draws its simulations by running a small web server and displaying the 
 It can show those frames in two places:
 
 - a **desktop window** that opens by itself, sits alongside your editor, and closes when the run
-  ends — this is what you want, and what you just saw;
+  ends. This is what you want, and what you just saw.
 - a **browser tab** you have to open by hand from a URL, and close by hand afterwards.
 
 The desktop window needs one extra package, `pywebview`. On a clone of this repository you get it
@@ -239,8 +239,8 @@ so you should never have to think about it.
 
 Two platform notes:
 
-- **WSL**: the window is a genuine Windows window, launched from Linux via Microsoft Edge in app
-  mode. It works out of the box with no extra setup and no X server.
+- **WSL**: the window is a real Windows window, launched from Linux through Microsoft Edge in app
+  mode. It needs no extra setup and no X server.
 - **Linux desktop**: the window needs system GTK/WebKit libraries that pip cannot install. See
   [Troubleshooting](#the-window-does-not-open-on-linux) if it falls back to a browser tab.
 
@@ -270,7 +270,7 @@ Step 5: Start your assignment
 The clone from Step 3 is the *library*. Your assignment is your own code, and it belongs in its own
 project folder so that your work stays separate from Flatland's source.
 
-Start from the assignment template, not from an empty folder — it already depends on Flatland, pins
+Start from the assignment template, not from an empty folder. It already depends on Flatland, pins
 the same Python, and gives you somewhere to put your planner:
 
 **[github.com/ShortestPathLab/fit5222-a1-template](https://github.com/ShortestPathLab/fit5222-a1-template)**
@@ -314,14 +314,14 @@ after restarting your machine; if it still fails, ask on the unit forum rather t
 ### `git clone` fails, or asks for a password
 
 You are probably on a network that blocks Git. Try the clone again on a different connection (a phone
-hotspot is a good test). Flatland is a public repository — you should never be asked for GitHub
-credentials, so if you are, the URL has a typo.
+hotspot is a good test). Flatland is a public repository, so you should never be asked for GitHub
+credentials. If you are, the URL has a typo.
 
 ### "The flatland render server cannot use port ..."
 
-Flatland serves the visualisation over a local port, starting at 8080. If 8080 is busy — another dev
-server, or a second Flatland running in the next terminal — it simply tries 8081, then 8082, and so
-on, so you should never see this by default.
+Flatland serves the visualisation over a local port, starting at 8080. If 8080 is busy (another dev
+server, say, or a second Flatland running in the next terminal) it tries 8081, then 8082, and so
+on, so you should not see this by default.
 
 You only get this error if you *named* a port that something else already holds. That is treated as
 an error rather than quietly moved, because asking for a specific port usually means something else
@@ -337,9 +337,9 @@ Whichever port it lands on is the one printed in the terminal panel and used by 
 
 ### The window does not open, and I get a URL instead
 
-Flatland never fails hard here: if it cannot open a window, it serves the same simulation to your
+If Flatland cannot open a window, it falls back to serving the same simulation to your
 browser and prints the address. Open that address (usually `http://127.0.0.1:8080/`) and you will see
-exactly the same thing. Your setup is *working* — only the window is missing.
+exactly the same thing. Your setup is *working*; only the window is missing.
 
 In a clone of this repository the window package is installed for you, so a URL here usually means
 your platform could not open the window rather than that anything is missing — see the two sections
@@ -356,7 +356,7 @@ $ sudo apt install libgirepository1.0-dev gir1.2-webkit2-4.1 python3-gi
 $ uv sync --reinstall
 ```
 
-If that does not do it, use the browser tab — you lose nothing but convenience.
+If that does not do it, use the browser tab. You lose nothing but the convenience.
 
 ### The window does not open in WSL
 
@@ -377,5 +377,5 @@ this project starts with `uv run`, and must be run from inside the project folde
 
 Ask on the unit forum, or open an issue at
 [github.com/ShortestPathLab/flatland/issues](https://github.com/ShortestPathLab/flatland/issues).
-Include your operating system, the command you ran, and the **complete** error message — screenshots
-of a single line are rarely enough to diagnose anything.
+Include your operating system, the command you ran, and the **complete** error message. A screenshot
+of a single line is rarely enough to diagnose anything.

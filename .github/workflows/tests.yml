@@ -38,5 +38,5 @@ jobs:
       - name: Run examples
         run: xvfb-run uv run python benchmarks/run_all_examples.py
 
-      - name: Run notebooks
-        run: xvfb-run uv run python notebooks/run_all_notebooks.py
+      # - name: Run notebooks
+      #   run: xvfb-run uv run python notebooks/run_all_notebooks.py

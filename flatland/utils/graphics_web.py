@@ -15,6 +15,7 @@ import atexit
 import base64
 import importlib.util
 import io
+import itertools
 import os
 import socket
 import subprocess
@@ -57,6 +58,33 @@ VIEWER_GRACE = 1.0
 _renderers = {}
 _server = None
 _server_lock = threading.Lock()
+
+# Renderer ids are never reused. len(_renderers) would hand a new renderer the
+# id of a closed one whenever open/close interleave, and the newcomer would
+# silently evict a live renderer from the registry.
+_renderer_ids = itertools.count()
+
+# Bumped whenever _renderers changes. Connected pages captured the registry as
+# it stood when they loaded, so they watch this and reload themselves to pick
+# up environments that came or went since.
+_registry_version = 0
+
+# The native window, like the server, is one per process. Every renderer is
+# served by the same server and the window's page shows whichever environments
+# are registered, so a second window could only duplicate the first - and a
+# script that creates a fresh environment per call would otherwise pop a new
+# window for every one of them. The single attempt is remembered here, success
+# or failure.
+_window_lock = threading.Lock()
+_window_attempted = False
+_window_proc = None
+_window_reason = None
+
+
+def _registry_changed():
+    global _registry_version
+    with _server_lock:
+        _registry_version += 1
 
 
 def _local_url(host, port):
@@ -159,7 +187,7 @@ def _run_windows(args, timeout=15):
             args, cwd="/mnt/c", capture_output=True, text=True, timeout=timeout
         )
         return out.stdout.replace("\r", "")
-    except OSError, subprocess.SubprocessError:
+    except (OSError, subprocess.SubprocessError):
         return ""
 
 
@@ -314,6 +342,54 @@ def _try_open_native_window(url, title="Flatland", size=(400, 400)):
             return None, reason
         time.sleep(0.1)
     return proc, None
+
+
+def _open_window_once(server, url, size):
+    """Open the native window at most once per process lifetime.
+
+    Returns (process, None) if the window is up - whether it was opened by
+    this call or an earlier one - or (None, reason) if there is no window.
+
+    Renderers come and go (a script may build a fresh environment, and with it
+    a fresh renderer, for every call), but they all share one server and the
+    window's page shows all of them. So the window is process state, not
+    renderer state: the first renderer to want one opens it, and everyone
+    after that inherits it.
+
+    The attempt is one-shot in both directions. A failure is not retried -
+    whatever was missing (display, pywebview, a Windows browser) will still be
+    missing seconds later, and each retry would cost a NATIVE_STARTUP_GRACE
+    stall. And if the user closed the window, that was them closing the one
+    window this program gets; a later renderer does not reopen it on them.
+    """
+    global _window_attempted, _window_proc, _window_reason
+    with _window_lock:
+        if not _window_attempted:
+            _window_attempted = True
+            if _is_wsl():
+                # WSL has no Linux GUI stack worth targeting, but it can launch
+                # Windows executables - so the window comes from the Windows
+                # side. Windows reaches the server over WSL's loopback
+                # forwarding, which only covers sockets bound to the wildcard
+                # address.
+                if server.host not in ("0.0.0.0", "::"):
+                    _window_reason = (
+                        f"in WSL, a Windows window cannot reach a server bound to "
+                        f"{server.host}. Bind 0.0.0.0 (the default) instead."
+                    )
+                else:
+                    _window_proc, _window_reason = _try_open_wsl_window(
+                        url, size=size
+                    )
+            else:
+                _window_proc, _window_reason = _try_open_native_window(
+                    url, size=size
+                )
+
+        if _window_proc is not None and _window_proc.poll() is not None:
+            # Opened once, since closed. Report it as gone, not as open.
+            return None, "the window from earlier in this run was closed"
+        return _window_proc, _window_reason
 
 
 def _bind_error(host, port):
@@ -522,7 +598,27 @@ class _Server:
 
             ui.keyboard(on_key=on_key)
 
+        def follow_registry():
+            """Reload the page when the set of environments changes.
+
+            The window is opened once per process, but renderers are not: a
+            script that builds a fresh environment per episode registers a new
+            renderer each time. This page captured the registry as it stood on
+            load, and its views poll the renderer objects they captured - so
+            without this, the one window would freeze on the last frame of the
+            first environment. The reload's momentary disconnect sits well
+            inside VIEWER_GRACE, the same allowance a hand-reload gets.
+            """
+            seen = _registry_version
+
+            def check():
+                if _registry_version != seen:
+                    ui.navigate.reload()
+
+            ui.timer(0.5, check)
+
         def show_all():
+            follow_registry()
             # Every view, not just the window we opened: when the run ends, the
             # last frame otherwise sits there looking like a hung simulation.
             ui.add_head_html(_HIDE_RECONNECT_CSS + _SELF_CLOSE_JS)
@@ -558,6 +654,7 @@ class _Server:
 
         @ui.page("/env/{idx}")
         def single(idx: int):
+            follow_registry()
             ui.add_head_html(_HIDE_RECONNECT_CSS + _SELF_CLOSE_JS)
             renderer = _renderers.get(idx)
             if renderer is None:
@@ -629,6 +726,10 @@ class WEBGL(PILSVG):
             installed - the render server keeps running regardless, and the URL
             to open in a browser is printed instead. Set False to never attempt
             it.
+
+            At most one window is opened per process, however many renderers
+            the run creates: later renderers appear in the window the first one
+            opened rather than each popping a window of their own.
         wait_for_client
             Hold the first frame until someone is actually watching, so you see
             the run from step 0 rather than opening the link to find the episode
@@ -692,7 +793,7 @@ class WEBGL(PILSVG):
 
         self.window_open = False
         self.closed = False
-        self._idx = len(_renderers)
+        self._idx = next(_renderer_ids)
         self._frame_lock = threading.Lock()
         self._png = None
         self._mime = "image/jpeg" if self.image_format == "jpeg" else "image/png"
@@ -713,6 +814,7 @@ class WEBGL(PILSVG):
         # reading self.port - get_endpoint_URL among them - need that, not None.
         self.port = server.port
         _renderers[self._idx] = self
+        _registry_changed()
         self.window_open = True
 
         url = _local_url(server.host, server.port)
@@ -732,24 +834,10 @@ class WEBGL(PILSVG):
             # stays the plain one.
             window_url = url + "window"
 
-            if _is_wsl():
-                # WSL has no Linux GUI stack worth targeting, but it can launch
-                # Windows executables - so the window comes from the Windows side.
-                # Windows reaches the server over WSL's loopback forwarding, which
-                # only covers sockets bound to the wildcard address.
-                if server.host not in ("0.0.0.0", "::"):
-                    reason = (
-                        f"in WSL, a Windows window cannot reach a server bound to "
-                        f"{server.host}. Bind 0.0.0.0 (the default) instead."
-                    )
-                else:
-                    self._native_proc, reason = _try_open_wsl_window(
-                        window_url, size=size
-                    )
-            else:
-                self._native_proc, reason = _try_open_native_window(
-                    window_url, size=size
-                )
+            # One window per process, however many renderers this run gets
+            # through: a second renderer inherits the window the first one
+            # opened, and the page follows the registry (see _serve).
+            self._native_proc, reason = _open_window_once(server, window_url, size)
 
             opened_native = self._native_proc is not None
             if opened_native and self.exit_on_close:
@@ -799,7 +887,10 @@ class WEBGL(PILSVG):
         """End the process when the user closes the native window."""
         proc.wait()
         if self.closed:
-            return  # close_window() killed it on purpose; not a user close.
+            # This renderer was already closed deliberately; the shared window
+            # outliving it is not its concern. If a later renderer is running,
+            # its own watchers decide what a closed window means.
+            return
         self._end_run("Window closed - exiting.")
 
     def _exit_when_viewers_leave(self, server):
@@ -850,14 +941,17 @@ class WEBGL(PILSVG):
             self._status = None
 
     def close_window(self):
-        # Set before terminating, so the watcher above can tell a deliberate
-        # close_window() apart from the user closing the window.
+        # Set first, so the watchers above can tell a deliberate close_window()
+        # apart from the user closing the window or walking away.
         self.closed = True
         self._stop_status()
-        if self._native_proc is not None and self._native_proc.poll() is None:
-            self._native_proc.terminate()
+        # The native window is NOT terminated here: it belongs to the process,
+        # not to this renderer (see _open_window_once), and the next environment
+        # this program creates will appear in it. When the process ends, the
+        # server stops answering and the window closes itself.
         self._native_proc = None
         _renderers.pop(self._idx, None)
+        _registry_changed()
         self.window_open = False
 
     # -- run stats -----------------------------------------------------------

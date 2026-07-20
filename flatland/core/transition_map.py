@@ -2,6 +2,8 @@
 TransitionMap and derived classes.
 """
 
+import copy
+
 import numpy as np
 from importlib.resources import as_file, files
 from typing import List, Optional, Tuple
@@ -150,6 +152,30 @@ class GridTransitionMap(TransitionMap):
         # The sparse rail generator overwrites this and grid4_generators_utils increments it;
         # a_star reads it, so it has to exist even when the grid is built some other way.
         self.reserve = np.zeros((height, width), dtype=self.transitions.get_type())
+
+    def __deepcopy__(self, memo):
+        # Hand-rolled for speed: evaluation harnesses deep-copy the rail for
+        # every planner call they make, and the generic deepcopy machinery
+        # walked the grid cell by cell. ndarray.copy() replaces that; the
+        # transitions lookup tables are shared because they are immutable
+        # after construction (the __init__ default already shares a single
+        # RailEnvTransitions across every map); RandomState is cloned via its
+        # documented state round-trip.
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for key, value in self.__dict__.items():
+            if isinstance(value, np.ndarray):
+                result.__dict__[key] = value.copy()
+            elif key == "transitions":
+                result.__dict__[key] = value
+            elif isinstance(value, np.random.RandomState):
+                clone = np.random.RandomState()
+                clone.set_state(value.get_state())
+                result.__dict__[key] = clone
+            else:
+                result.__dict__[key] = copy.deepcopy(value, memo)
+        return result
 
     def get_full_transitions(self, row, column):
         """

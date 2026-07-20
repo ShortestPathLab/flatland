@@ -1,6 +1,7 @@
 import argparse
 import copy
 import glob
+import itertools
 import json
 import os
 import sys
@@ -8,6 +9,9 @@ import time
 from enum import IntEnum
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, TypedDict
 
+import numpy as np
+
+from flatland.core.env_observation_builder import DummyObservationBuilder
 from flatland.envs.malfunction_generators import (
     malfunction_from_file,
 )
@@ -95,6 +99,43 @@ class Directions(IntEnum):
     WEST = 3
 
 
+def _shareable_path(path):
+    """True if every location in path is a tuple of Python/numpy ints --
+    immutable all the way down, so the tuples can be shared between copies.
+    The set(map(type, ...)) passes stay at C speed; a per-element genexpr of
+    isinstance checks was several times slower on long paths.
+    """
+    if set(map(type, path)) - {tuple}:
+        return False
+    inner_types = set(map(type, itertools.chain.from_iterable(path)))
+    return all(t is int or issubclass(t, np.integer) for t in inner_types)
+
+
+def fast_copy_paths(path_all):
+    """Isolation copy of the paths handed to a student replan implementation.
+
+    Equivalent to copy.deepcopy(path_all) for the documented path format
+    (a list of paths, each a list of (x, y) integer location tuples): the
+    location tuples are immutable, so they are shared instead of
+    reconstructed. deepcopy rebuilt every tuple of every path on every
+    replan call, which made it the single largest cost of an assessment
+    run. Any path that does not match the documented format falls back to
+    copy.deepcopy.
+    """
+    if type(path_all) is not list:
+        return copy.deepcopy(path_all)
+    copied = []
+    for path in path_all:
+        try:
+            if type(path) is list and _shareable_path(path):
+                copied.append(path[:])
+                continue
+        except TypeError:
+            pass
+        copied.append(copy.deepcopy(path))
+    return copied
+
+
 def path_controller(time_step, local_env: RailEnv, path_all: list, debug=False):
     action_dict = {}
     out_of_path = True
@@ -137,7 +178,9 @@ def get_action(agent_id: int, next_loc: Tuple[int, int], env: RailEnv) -> int:
     if current_loc == next_loc:
         return Train_Actions.STOP
 
-    assert current_loc is not None, "Agent {} is not on the grid, it has no position to move from.".format(agent_id)
+    assert (
+        current_loc is not None
+    ), "Agent {} is not on the grid, it has no position to move from.".format(agent_id)
 
     move_direction = 0
     if next_loc[0] - current_loc[0] == 1:
@@ -215,21 +258,24 @@ def check_conflict(time_step, path_all, local_env: RailEnv, debug=False):
 
 #: One row of the per-test-case statistics table produced by :func:`evaluator`.
 #: Declared with the functional syntax because some keys are not valid identifiers.
-RunStatistics = TypedDict("RunStatistics", {
-    "test_case": str,
-    "No. of agents": int,
-    "time_step": int,
-    "num_done": int,
-    "deadlines_met": int,
-    "sum_of_cost": int,
-    "done_percentage": float,
-    "all_done": bool,
-    "cost": List[int],
-    "penalty": List[int],
-    "sic_final": int,
-    "p": int,
-    "f": float,
-})
+RunStatistics = TypedDict(
+    "RunStatistics",
+    {
+        "test_case": str,
+        "No. of agents": int,
+        "time_step": int,
+        "num_done": int,
+        "deadlines_met": int,
+        "sum_of_cost": int,
+        "done_percentage": float,
+        "all_done": bool,
+        "cost": List[int],
+        "penalty": List[int],
+        "sic_final": int,
+        "p": int,
+        "f": float,
+    },
+)
 
 
 def evaluator(
@@ -277,12 +323,18 @@ def evaluator(
                 malfunction_from_file(test_case) if question_type == 3 else None
             ),
             # Removes agents at the end of their journey to make space for others
+            # This harness never reads the observations step() returns, and the
+            # default GlobalObsForRailEnv builds full-grid arrays per agent per
+            # step -- on large levels that was most of the episode runtime.
+            obs_builder_object=DummyObservationBuilder(),
         )
 
         local_env.reset()
 
         max_episode_steps = local_env._max_episode_steps
-        assert max_episode_steps is not None, "the env must be reset before it can be evaluated."
+        assert (
+            max_episode_steps is not None
+        ), "the env must be reset before it can be evaluated."
 
         num_of_agents = local_env.get_num_agents()
         statistic_dict: RunStatistics = {
@@ -470,12 +522,14 @@ def evaluator(
                     replan_start = time.time()
                     if mute:
                         mute_print()
-                    assert replan is not None, "a replan function is required for question type 3."
+                    assert (
+                        replan is not None
+                    ), "a replan function is required for question type 3."
                     new_paths = replan(
                         copy.deepcopy(local_env.agents),
                         copy.deepcopy(local_env.rail),
                         time_step,
-                        copy.deepcopy(path_all),
+                        fast_copy_paths(path_all),
                         local_env._max_episode_steps,
                         new_malfunctions,
                         failed_agents,
@@ -497,7 +551,11 @@ def evaluator(
                     else:
                         num_deadlines_met += 1
                 else:
-                    if question_type == 3 and deadline is not None and time_step > deadline:
+                    if (
+                        question_type == 3
+                        and deadline is not None
+                        and time_step > deadline
+                    ):
                         statistic_dict["penalty"][agent_id] += 1
                     statistic_dict["cost"][agent_id] += 1
 
@@ -507,9 +565,6 @@ def evaluator(
             )
             statistic_dict["deadlines_met"] = num_deadlines_met
 
-            if debug:
-                time.sleep(0.2)
-
             if done["__all__"]:
                 statistic_dict["all_done"] = True
                 if debug:
@@ -518,7 +573,6 @@ def evaluator(
                             time_step
                         )
                     )
-                time.sleep(1)
                 break
             time_step += 1
 

@@ -1,3 +1,4 @@
+import copy
 from enum import IntEnum
 from itertools import starmap
 from typing import Any, Dict, List, Tuple, Optional, NamedTuple
@@ -68,6 +69,39 @@ class EnvAgent:
     old_position: Optional[IntVector2D] = attrib(default=None)
 
     deadline: Optional[int] = attrib(default=None)
+
+    def __deepcopy__(self, memo):
+        # Hand-rolled for speed: evaluation harnesses deep-copy every agent
+        # for every planner call they make, and the generic deepcopy
+        # machinery dominated assessment runtime. Positions, directions and
+        # status are immutable and shared; speed_data and malfunction_data
+        # are flat {str: scalar} dicts, so a shallow dict copy is a full
+        # copy. Subclasses may carry state this constructor call would drop,
+        # so they keep the generic behaviour.
+        if type(self) is not EnvAgent:
+            cls = self.__class__
+            result = cls.__new__(cls)
+            memo[id(self)] = result
+            for key, value in self.__dict__.items():
+                result.__dict__[key] = copy.deepcopy(value, memo)
+            return result
+        result = EnvAgent(
+            initial_position=self.initial_position,
+            initial_direction=self.initial_direction,
+            direction=self.direction,
+            target=self.target,
+            moving=self.moving,
+            speed_data=dict(self.speed_data),
+            malfunction_data=dict(self.malfunction_data),
+            handle=self.handle,
+            status=self.status,
+            position=self.position,
+            old_direction=self.old_direction,
+            old_position=self.old_position,
+            deadline=self.deadline,
+        )
+        memo[id(self)] = result
+        return result
 
     def reset(self):
         """

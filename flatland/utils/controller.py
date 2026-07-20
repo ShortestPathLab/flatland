@@ -253,6 +253,11 @@ def evaluator(
     print(output_header, flush=True)
     out = open(write, "w+", 1) if write is not None else None
 
+    # One renderer is live at a time, and it outlives its loop iteration on
+    # purpose: it is retired when the NEXT test case starts, so the final
+    # test's view is still up during the "Press enter to exit" pause below.
+    env_renderer: Optional["RenderTool"] = None
+
     for i, test_case in enumerate(test_cases):
         test_name = (
             os.path.basename(os.path.dirname(test_case))
@@ -298,9 +303,15 @@ def evaluator(
         }
 
         # Initiate the renderer
-        env_renderer: Optional["RenderTool"] = None
         if visualizer:
             from flatland.utils.rendertools import RenderTool
+
+            # Retire the previous test case's renderer first, so this one takes
+            # its place in the single shared window rather than stacking under
+            # it. This deregisters the old view; the window itself is opened
+            # once per process and lives for the whole run.
+            if env_renderer is not None:
+                env_renderer.close_window()
 
             env_renderer = RenderTool(
                 local_env,

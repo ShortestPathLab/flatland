@@ -187,7 +187,7 @@ def _run_windows(args, timeout=15):
             args, cwd="/mnt/c", capture_output=True, text=True, timeout=timeout
         )
         return out.stdout.replace("\r", "")
-    except (OSError, subprocess.SubprocessError):
+    except OSError, subprocess.SubprocessError:
         return ""
 
 
@@ -378,13 +378,9 @@ def _open_window_once(server, url, size):
                         f"{server.host}. Bind 0.0.0.0 (the default) instead."
                     )
                 else:
-                    _window_proc, _window_reason = _try_open_wsl_window(
-                        url, size=size
-                    )
+                    _window_proc, _window_reason = _try_open_wsl_window(url, size=size)
             else:
-                _window_proc, _window_reason = _try_open_native_window(
-                    url, size=size
-                )
+                _window_proc, _window_reason = _try_open_native_window(url, size=size)
 
         if _window_proc is not None and _window_proc.poll() is not None:
             # Opened once, since closed. Report it as gone, not as open.
@@ -666,6 +662,7 @@ class _Server:
         app.on_startup(self.started.set)
 
         ui.run(
+            show_welcome_message=False,
             host=self.host,
             port=self.port,
             show=False,
@@ -771,7 +768,9 @@ class WEBGL(PILSVG):
         # Stays None when nobody named a port: that is not "8080", it is "any",
         # and only _claim_port - once it has probed - can turn it into a number.
         # open_window writes the port we actually got back over this.
-        requested_port = port if port is not None else os.environ.get("FLATLAND_RENDER_PORT")
+        requested_port = (
+            port if port is not None else os.environ.get("FLATLAND_RENDER_PORT")
+        )
         self.port = int(requested_port) if requested_port is not None else None
         self.native = native and os.environ.get("FLATLAND_RENDER_NATIVE", "1") != "0"
         self.exit_on_close = exit_on_close

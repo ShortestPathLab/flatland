@@ -6,8 +6,19 @@ import json
 import os
 import sys
 import time
+from dataclasses import dataclass
 from enum import IntEnum
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, TypedDict
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    TypedDict,
+    Union,
+)
 
 import numpy as np
 
@@ -65,6 +76,36 @@ def eprint(*args, **kwargs):
 
 def wprint(*args, **kwargs):
     print("[WARN] ", *args, file=sys.stderr, **kwargs)
+
+
+def dprint(*args, **kwargs):
+    print("[DEBUG] ", *args, **kwargs)
+
+
+def _debug_pause(prompt="[DEBUG]  Press Enter to continue: "):
+    """Pause so the user can read what was just printed, but never hang a
+    non-interactive run (CI, piped stdin) on an input() nobody can answer."""
+    if not sys.stdin.isatty():
+        return
+    try:
+        input(prompt)
+    except EOFError:
+        pass
+
+
+def _dprint_path(agent_id, path):
+    if not path:
+        wprint(
+            "Agent {}: get_path() returned an empty path -- this agent will never depart.".format(
+                agent_id
+            )
+        )
+    else:
+        dprint(
+            "Agent {}: {} location(s), {} -> {}. Full path: {}".format(
+                agent_id, len(path), path[0], path[-1], path
+            )
+        )
 
 
 output_template = "{0:18} | {1:12} | {2:12} | {3:12} | {4:10} | {5:12} | {6:12} | {7:12} | {8:12} | {9:12}"
@@ -160,10 +201,12 @@ def path_controller(time_step, local_env: RailEnv, path_all: list, debug=False):
                 action_dict[agent_id] = Train_Actions.STOP
                 if debug:
                     eprint(
-                        "Agent {} cannot reach location {} from location {}. Path is inconsistent.".format(
+                        "Timestep {}: agent {} is at {} but its path says {} next, which is not reachable in one move. "
+                        "Consecutive path locations must be adjacent grid cells -- the path is inconsistent, issuing STOP instead.".format(
+                            time_step,
                             agent_id,
-                            path_all[agent_id][time_step],
                             local_env.agents[agent_id].position,
+                            path_all[agent_id][time_step],
                         )
                     )
                 inconsistent = True
@@ -239,21 +282,65 @@ def check_conflict(time_step, path_all, local_env: RailEnv, debug=False):
             if debug:
                 if conflict_id == -1:
                     wprint(
-                        "Agent {} failed to move to {} at timestep {}. Will call replan function if in question 3.".format(
-                            agent_id, path_all[agent_id][time_step], time_step
+                        "Timestep {}: agent {} should be at {} but is at {} -- its move failed (blocked or malfunctioning). replan() will be called.".format(
+                            time_step,
+                            agent_id,
+                            path_all[agent_id][time_step],
+                            local_env.agents[agent_id].position,
                         )
                     )
                 else:
                     wprint(
-                        "Agent {} have conflict when trying to reach {} at timestep {} with Agent {}. Will call replan function if in question 3.".format(
+                        "Timestep {}: agent {} cannot enter {} -- agent {} is occupying that cell. replan() will be called.".format(
+                            time_step,
                             agent_id,
                             path_all[agent_id][time_step],
-                            time_step,
                             conflict_id,
                         )
                     )
             conflict = True
     return conflict, failed_agents
+
+
+@dataclass
+class VisualiserOptions:
+    """How to display an evaluation run. Defaults mirror ``flatland demo``.
+
+    Pass an instance as ``evaluator(..., visualizer=VisualiserOptions(...))``;
+    ``visualizer=True`` is shorthand for ``VisualiserOptions()`` and
+    ``visualizer=False`` disables rendering entirely.
+    """
+
+    #: Seconds to pause after each timestep so the run is watchable.
+    #: 0 runs at full speed.
+    delay: float = 0.3
+    #: Do not open a native window; print a URL and serve to a browser instead.
+    #: Use on a machine with no display.
+    headless: bool = False
+    #: Hold the first frame until a viewer connects, so the run is seen from
+    #: timestep 0. False starts immediately.
+    wait: bool = True
+    #: Address and port to serve on. Defaults: localhost, and the first free
+    #: port from 8080 up.
+    host: Optional[str] = None
+    port: Optional[int] = None
+    #: Pixels per grid cell. Default: scale the grid to fit the canvas.
+    cell_size: Optional[int] = None
+    #: Canvas size in pixels; the grid is scaled to fit. Defaults to the
+    #: renderer's own choice (1600x1600 for the web renderer).
+    screen_width: Optional[int] = None
+    screen_height: Optional[int] = None
+    #: Cap on frames streamed per second.
+    max_fps: int = 30
+    #: Stream frames as "jpeg" (fast) or "png" (lossless), and the JPEG
+    #: quality (1-95).
+    image_format: str = "jpeg"
+    quality: int = 90
+    #: Overlay agent IDs and targets on the rendering.
+    show_debug: bool = True
+    #: Closing the native window ends the whole process. Set False if the
+    #: evaluation must keep running after the window is closed.
+    exit_on_close: bool = True
 
 
 #: One row of the per-test-case statistics table produced by :func:`evaluator`.
@@ -281,9 +368,9 @@ RunStatistics = TypedDict(
 def evaluator(
     get_path,
     test_cases: list,
-    debug: bool,
-    visualizer: bool,
-    question_type: int,
+    debug: bool = False,
+    visualizer: Union[bool, VisualiserOptions] = False,
+    question_type: int = 1,
     ddl: Optional[List[str]] = None,
     ddl_scale: float = 0.2,
     baseline_pscore: Dict[str, float] = {},
@@ -292,7 +379,36 @@ def evaluator(
     mute: bool = False,
     write: Optional[str] = None,
     replan: Optional[Callable[..., Any]] = None,
+    max_steps: Optional[int] = None,
 ):
+    """Run ``get_path`` against each test case and print a statistics table.
+
+    get_path / replan
+        The planner under evaluation. ``get_path``'s expected signature
+        depends on ``question_type`` (1, 2 or 3); ``replan`` is only used for
+        question type 3, where it is called whenever a malfunction or failed
+        move is detected.
+    debug
+        Print a step-by-step account of the run: what was planned, which
+        agents malfunctioned or were blocked, and why each episode ended.
+        Pauses for Enter after problems when run from a terminal.
+    visualizer
+        ``False`` (default): run headless. ``True``: watch the run with the
+        default :class:`VisualiserOptions`. A :class:`VisualiserOptions`
+        instance: watch the run with custom settings (play speed, browser vs
+        native window, ...).
+    max_steps
+        Cap the timesteps per episode. Default: each test case's own limit.
+        Note that unfinished agents are scored at the episode limit, so
+        lowering the cap changes scores.
+    """
+    if isinstance(visualizer, VisualiserOptions):
+        vis_options: Optional[VisualiserOptions] = visualizer
+    elif visualizer:
+        vis_options = VisualiserOptions()
+    else:
+        vis_options = None
+
     statistics: List[RunStatistics] = []
     runtimes = []
     pscores = {}
@@ -311,7 +427,9 @@ def evaluator(
             + os.path.basename(test_case).replace(".pkl", "")
         )
         if debug:
-            print("Loading evaluation: {}".format(test_case))
+            dprint("")
+            dprint("=== Test {}/{}: {} ===".format(i + 1, len(test_cases), test_name))
+            dprint("Loading {}".format(test_case))
         local_env = RailEnv(
             width=1,
             height=1,
@@ -331,12 +449,24 @@ def evaluator(
 
         local_env.reset()
 
+        # After the reset, never before it: reset() takes _max_episode_steps
+        # from the schedule generator, so a cap set any earlier is silently
+        # overwritten.
+        if max_steps is not None:
+            local_env._max_episode_steps = max_steps
+
         max_episode_steps = local_env._max_episode_steps
         assert (
             max_episode_steps is not None
         ), "the env must be reset before it can be evaluated."
 
         num_of_agents = local_env.get_num_agents()
+        if debug:
+            dprint(
+                "{} agent(s) on a {}x{} grid; episode ends at timestep {}.".format(
+                    num_of_agents, local_env.width, local_env.height, max_episode_steps
+                )
+            )
         statistic_dict: RunStatistics = {
             "test_case": test_name,
             "No. of agents": local_env.get_num_agents(),
@@ -355,7 +485,7 @@ def evaluator(
         }
 
         # Initiate the renderer
-        if visualizer:
+        if vis_options is not None:
             from flatland.utils.rendertools import RenderTool
 
             # Retire the previous test case's renderer first, so this one takes
@@ -367,14 +497,25 @@ def evaluator(
 
             env_renderer = RenderTool(
                 local_env,
-                show_debug=True,
-                screen_height=900,  # Adjust these parameters to fit your resolution
-                screen_width=900,
-            )  # Adjust these parameters to fit your resolution
+                show_debug=vis_options.show_debug,
+                screen_width=vis_options.screen_width,
+                screen_height=vis_options.screen_height,
+                cell_size=vis_options.cell_size,
+                host=vis_options.host,
+                port=vis_options.port,
+                native=not vis_options.headless,
+                wait_for_client=vis_options.wait,
+                exit_on_close=vis_options.exit_on_close,
+                image_format=vis_options.image_format,
+                quality=vis_options.quality,
+                max_fps=vis_options.max_fps,
+            )
             env_renderer.render_env(
                 show=True, show_observations=False, show_predictions=False
             )
         path_all = []
+        if debug:
+            dprint("Planning initial paths with get_path() ...")
         start_t = time.time()
         if mute:
             mute_print()
@@ -390,7 +531,7 @@ def evaluator(
             )
             path_all.append(path[:])
             if debug:
-                print("Agent: {}, Path: {}".format(agent_id, path))
+                _dprint_path(agent_id, path)
         elif question_type == 2:
             for agent_id in range(0, len(local_env.agents)):
                 agent = local_env.agents[agent_id]
@@ -405,7 +546,7 @@ def evaluator(
                 )
                 path_all.append(path[:])
                 if debug:
-                    print("Agent: {}, Path: {}".format(agent_id, path))
+                    _dprint_path(agent_id, path)
         elif question_type == 3:
             if ddl:
                 deadlines = local_env.read_deadlines(ddl[i])
@@ -437,8 +578,14 @@ def evaluator(
                 local_env._max_episode_steps,
             )
             if debug:
-                for agent_id in range(0, len(local_env.agents)):
-                    print("Agent: {}, Path: {}".format(agent_id, path_all[agent_id]))
+                if len(path_all) != num_of_agents:
+                    wprint(
+                        "get_path() returned {} path(s) for {} agents.".format(
+                            len(path_all), num_of_agents
+                        )
+                    )
+                for agent_id in range(0, min(len(path_all), num_of_agents)):
+                    _dprint_path(agent_id, path_all[agent_id])
 
         else:
             eprint("No such question type option.")
@@ -446,30 +593,34 @@ def evaluator(
         if mute:
             unmute_print()
         runtimes.append(round(time.time() - start_t, 2))
+        if debug:
+            dprint("Planning finished in {}s. Running the episode ...".format(runtimes[-1]))
 
         replan_runtime = 0
         time_step = 0
         out_of_path = False
         inconsistent = False
+        done_agents: set = set()
         # `step()` returns the very same dict, so this is the state before the first step
         done = local_env.dones
         while time_step < max_episode_steps:
             if out_of_path:
                 if debug:
-                    eprint(
-                        "Reach last location in all paths. Current timestep: {}".format(
-                            time_step
+                    wprint(
+                        "Timestep {}: every path is exhausted, but only {}/{} agents reached their target.".format(
+                            time_step, statistic_dict["num_done"], num_of_agents
                         )
                     )
-                    eprint("Can't finish test {}.".format(test_case))
-                    eprint("Press Enter to move to next test:")
-                    input()
+                    wprint(
+                        "The paths are too short to finish test {}. Ending this test.".format(
+                            test_name
+                        )
+                    )
+                    _debug_pause("[DEBUG]  Press Enter to move to the next test: ")
                 break
 
-            if inconsistent:
-                if debug:
-                    wprint("Press Enter to continue:")
-                    input()
+            if inconsistent and debug:
+                _debug_pause()
 
             action_dict, out_of_path, inconsistent = path_controller(
                 time_step, local_env, path_all, debug
@@ -487,8 +638,10 @@ def evaluator(
                 env_renderer.render_env(
                     show=True, show_observations=False, show_predictions=False
                 )
+                if vis_options is not None and vis_options.delay:
+                    time.sleep(vis_options.delay)
 
-            # Find malfunction and failed execuation agents. Then call replan function.
+            # Find malfunctioning and failed-execution agents. Then call the replan function.
             if question_type == 3:
                 conflict = False
                 failed_agents = []
@@ -497,10 +650,8 @@ def evaluator(
                     conflict, failed_agents = check_conflict(
                         time_step, path_all, local_env, debug
                     )
-                    if conflict:
-                        if debug:
-                            wprint("Press Enter to continue:")
-                            input()
+                    if conflict and debug:
+                        _debug_pause()
                 for agent in local_env.agents:
                     if agent.status != 3 and time_step >= len(path_all[agent.handle]):
                         failed_agents.append(agent.handle)
@@ -510,15 +661,24 @@ def evaluator(
                         and not malfunction_before[agent.handle]
                     ):
                         new_malfunctions.append(agent.handle)
+                if debug:
+                    for handle in new_malfunctions:
+                        broken = local_env.agents[handle]
+                        wprint(
+                            "Timestep {}: agent {} malfunctioned at {} -- immobilised for the next {} timestep(s).".format(
+                                time_step,
+                                handle,
+                                broken.position,
+                                broken.malfunction_data["malfunction"],
+                            )
+                        )
                 if len(new_malfunctions) != 0 or conflict:
                     if debug:
-                        print(
-                            "Find new malfunctions: ",
-                            new_malfunctions,
-                            " Find failed execuation agents: ",
-                            failed_agents,
+                        dprint(
+                            "Timestep {}: calling replan() (malfunctioning agents: {}; off-plan or out-of-path agents: {}) ...".format(
+                                time_step, new_malfunctions, failed_agents
+                            )
                         )
-                        print("Call replan function... ...")
                     replan_start = time.time()
                     if mute:
                         mute_print()
@@ -536,15 +696,22 @@ def evaluator(
                     )
                     if mute:
                         unmute_print()
-                    replan_runtime += round(time.time() - replan_start, 2)
+                    replan_time = round(time.time() - replan_start, 2)
+                    replan_runtime += replan_time
                     path_all = new_paths
+                    if debug:
+                        dprint("replan() returned in {}s.".format(replan_time))
 
             num_done = 0
             num_deadlines_met = 0
+            newly_done = []
             for agent_id in range(0, len(local_env.agents)):
                 deadline: Optional[int] = local_env.agents[agent_id].deadline
                 if local_env.agents[agent_id].status in [2, 3]:
                     num_done += 1
+                    if agent_id not in done_agents:
+                        done_agents.add(agent_id)
+                        newly_done.append(agent_id)
                     if question_type == 3 and deadline:
                         if statistic_dict["cost"][agent_id] <= deadline:
                             num_deadlines_met += 1
@@ -565,16 +732,30 @@ def evaluator(
             )
             statistic_dict["deadlines_met"] = num_deadlines_met
 
+            if debug and newly_done:
+                dprint(
+                    "Timestep {}: agent(s) {} reached their target ({}/{} done).".format(
+                        time_step, newly_done, num_done, num_of_agents
+                    )
+                )
+
             if done["__all__"]:
                 statistic_dict["all_done"] = True
                 if debug:
-                    print(
-                        "All agents reach destination at timestep: {}.  Move to next test in 1 seconds ...".format(
-                            time_step
+                    dprint(
+                        "Timestep {}: all {} agents reached their targets. Moving to the next test.".format(
+                            time_step, num_of_agents
                         )
                     )
                 break
             time_step += 1
+
+        if debug and not statistic_dict["all_done"] and not out_of_path:
+            dprint(
+                "Timestep limit ({}) reached with {}/{} agents at their target. Moving to the next test.".format(
+                    max_episode_steps, statistic_dict["num_done"], num_of_agents
+                )
+            )
 
         runtimes[-1] += replan_runtime
         # End of one episode.
